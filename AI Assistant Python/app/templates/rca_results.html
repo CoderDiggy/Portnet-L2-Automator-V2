@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/results.css">
+<style>
+.rca-section {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.rca-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px 30px;
+    border-radius: 12px 12px 0 0;
+    margin: -30px -30px 25px -30px;
+}
+
+.confidence-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.confidence-high { background: #10b981; color: white; }
+.confidence-medium { background: #f59e0b; color: white; }
+.confidence-low { background: #ef4444; color: white; }
+
+.timeline-event {
+    border-left: 3px solid #e0e0e0;
+    padding-left: 20px;
+    padding-bottom: 15px;
+    position: relative;
+}
+
+.timeline-event.critical {
+    border-left-color: #ef4444;
+}
+
+.timeline-event.error {
+    border-left-color: #f59e0b;
+}
+
+.timeline-event.warn {
+    border-left-color: #fbbf24;
+}
+
+.timeline-event::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 5px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #e0e0e0;
+}
+
+.timeline-event.critical::before { background: #ef4444; }
+.timeline-event.error::before { background: #f59e0b; }
+.timeline-event.warn::before { background: #fbbf24; }
+
+.evidence-item {
+    background: #f8f9fa;
+    border-left: 4px solid #667eea;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.log-entry {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
+.log-level-ERROR { border-left: 4px solid #ef4444; }
+.log-level-WARN { border-left: 4px solid #f59e0b; }
+.log-level-INFO { border-left: 4px solid #3b82f6; }
+
+.solution-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.solution-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-color: #667eea;
+}
+
+.cascade-step {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+</style>
+{% endblock %}
+
+{% block title %}RCA Results - AI Duty Officer Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Page Header -->
+    <div class="results-header-section mb-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 mx-auto">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                        <div>
+                            <h2 class="fw-bold mb-2">
+                                <i class="fas fa-microscope text-primary me-2"></i>
+                                Root Cause Analysis Results
+                            </h2>
+                            <p class="text-muted mb-0">Deep investigation completed</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="/rca" class="btn btn-outline-primary">
+                                <i class="fas fa-plus me-2"></i>New Analysis
+                            </a>
+                            <a href="/rca/history" class="btn btn-outline-secondary">
+                                <i class="fas fa-history me-2"></i>History
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                
+                <!-- Status Overview -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-primary-subtle">
+                                <i class="fas fa-fingerprint text-primary"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h6 class="text-muted mb-1">Incident ID</h6>
+                                <p class="fw-bold mb-0" style="font-size: 0.8rem;">{{ rca.incident_id[:12] }}...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-info-subtle">
+                                <i class="fas fa-file-alt text-info"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h6 class="text-muted mb-1">Logs Analyzed</h6>
+                                <p class="fw-bold mb-0">{{ rca.total_logs_analyzed }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-warning-subtle">
+                                <i class="fas fa-clock text-warning"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h6 class="text-muted mb-1">Search Window</h6>
+                                <p class="fw-bold mb-0">±{{ rca.search_window_hours }}h</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-success-subtle">
+                                <i class="fas fa-check-circle text-success"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h6 class="text-muted mb-1">Status</h6>
+                                <p class="fw-bold mb-0">{{ rca.status }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Incident Information -->
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-3">
+                        <i class="fas fa-info-circle me-2 text-primary"></i>
+                        Incident Information
+                    </h5>
+                    <div class="mb-3">
+                        <strong>Description:</strong>
+                        <p class="mt-2">{{ rca.incident_description }}</p>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <strong>Start Time:</strong> {{ rca.incident_start_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </div>
+                        {% if rca.incident_end_time %}
+                        <div class="col-md-6 mb-2">
+                            <strong>End Time:</strong> {{ rca.incident_end_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if rca.affected_systems %}
+                    <div class="mt-2">
+                        <strong>Affected Systems:</strong>
+                        {% for system in rca.affected_systems %}
+                        <span class="badge bg-secondary-subtle text-secondary ms-1">{{ system }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Root Cause -->
+                <div class="rca-section">
+                    <div class="rca-header">
+                        <h5 class="mb-2">
+                            <i class="fas fa-bullseye me-2"></i>
+                            Root Cause Identified
+                        </h5>
+                        {% if rca.confidence_score >= 0.8 %}
+                        <span class="confidence-badge confidence-high">
+                            Confidence: {{ (rca.confidence_score * 100)|int }}%
+                        </span>
+                        {% elif rca.confidence_score >= 0.6 %}
+                        <span class="confidence-badge confidence-medium">
+                            Confidence: {{ (rca.confidence_score * 100)|int }}%
+                        </span>
+                        {% else %}
+                        <span class="confidence-badge confidence-low">
+                            Confidence: {{ (rca.confidence_score * 100)|int }}%
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <h6 class="text-dark mb-3">{{ rca.root_cause }}</h6>
+                    
+                    {% if rca.evidence %}
+                    <h6 class="fw-bold mb-3 mt-4">
+                        <i class="fas fa-file-invoice me-2"></i>Evidence
+                    </h6>
+                    {% for evidence_list in rca.evidence %}
+                        {% for evidence_item in evidence_list %}
+                        <div class="evidence-item">
+                            <i class="fas fa-check-circle me-2 text-success"></i>
+                            {{ evidence_item }}
+                        </div>
+                        {% endfor %}
+                    {% endfor %}
+                    {% endif %}
+                    
+                    {% if rca.contributing_factors %}
+                    <h6 class="fw-bold mb-3 mt-4">
+                        <i class="fas fa-project-diagram me-2"></i>Contributing Factors
+                    </h6>
+                    {% for factors_list in rca.contributing_factors %}
+                        {% for factor in factors_list %}
+                        <div class="evidence-item">
+                            <i class="fas fa-arrow-right me-2 text-warning"></i>
+                            {{ factor }}
+                        </div>
+                        {% endfor %}
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <!-- Timeline -->
+                {% if rca.timeline %}
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fas fa-stream me-2 text-primary"></i>
+                        Timeline of Events
+                    </h5>
+                    {% for event in rca.timeline[:20] %}
+                    <div class="timeline-event {{ event.type|lower }}">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <strong class="text-muted">{{ event.timestamp[11:19] }}</strong>
+                            <span class="badge bg-{{ 'danger' if event.type == 'ERROR' else 'warning' if event.type == 'WARN' else 'info' }}-subtle text-{{ 'danger' if event.type == 'ERROR' else 'warning' if event.type == 'WARN' else 'info' }}">
+                                {{ event.type }}
+                            </span>
+                        </div>
+                        <div class="text-dark">{{ event.message }}</div>
+                        {% if event.service %}
+                        <small class="text-muted">Service: {{ event.service }}</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Error Cascade -->
+                {% if rca.error_cascade %}
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fas fa-sitemap me-2 text-primary"></i>
+                        Error Cascade
+                    </h5>
+                    <p class="text-muted mb-3">Shows how errors propagated through the system</p>
+                    {% for step in rca.error_cascade %}
+                    <div class="cascade-step">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <strong>{{ step.timestamp[11:19] }}</strong>
+                            <span class="badge bg-{{ 'danger' if step.level == 'ERROR' or step.level == 'CRITICAL' else 'warning' }}-subtle text-{{ 'danger' if step.level == 'ERROR' or step.level == 'CRITICAL' else 'warning' }}">
+                                {{ step.level }}
+                            </span>
+                        </div>
+                        <div>{{ step.message }}</div>
+                        <small class="text-muted">{{ step.service }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Similar Past Incidents -->
+                {% if rca.similar_incidents %}
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fas fa-history me-2 text-primary"></i>
+                        Similar Past Incidents
+                    </h5>
+                    {% for incident in rca.similar_incidents %}
+                    <div class="solution-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-0">Incident #{{ incident.id }}</h6>
+                        </div>
+                        <p class="text-muted mb-0">{{ incident.description }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Recommended Solutions & SOPs -->
+                {% if rca.recommended_solutions %}
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fas fa-tools me-2 text-primary"></i>
+                        Recommended Solutions & SOPs
+                    </h5>
+                    {% for solution in rca.recommended_solutions %}
+                    <div class="solution-card">
+                        <h6 class="fw-bold mb-2">{{ solution.title }}</h6>
+                        <p class="mb-0">{{ solution.content }}...</p>
+                        <a href="/knowledge" class="btn btn-sm btn-outline-primary mt-2">View Full SOP</a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Log Evidence -->
+                {% if log_evidence %}
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fas fa-code me-2 text-primary"></i>
+                        Log Evidence (Top {{ log_evidence|length }})
+                    </h5>
+                    {% for log in log_evidence %}
+                    <div class="log-entry log-level-{{ log.level }}">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span><strong>[{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}]</strong> {{ log.level }}</span>
+                            {% if log.source_file %}
+                            <span class="text-muted">{{ log.source_file }}</span>
+                            {% endif %}
+                        </div>
+                        <div>{{ log.message }}</div>
+                        {% if log.stack_trace %}
+                        <details class="mt-2">
+                            <summary class="text-warning" style="cursor: pointer;">Show stack trace</summary>
+                            <pre class="mt-2 mb-0" style="font-size: 0.75rem;">{{ log.stack_trace }}</pre>
+                        </details>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <div class="rca-section">
+                    <h6 class="fw-bold mb-3">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h6>
+                    <div class="action-buttons">
+                        <button class="btn btn-success btn-action">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Mark as Resolved
+                        </button>
+                        <button class="btn btn-info btn-action">
+                            <i class="fas fa-save me-2"></i>
+                            Save to Knowledge Base
+                        </button>
+                        <button class="btn btn-outline-secondary btn-action" onclick="window.print()">
+                            <i class="fas fa-print me-2"></i>
+                            Print Report
+                        </button>
+                        <button class="btn btn-outline-primary btn-action" onclick="exportRCA()">
+                            <i class="fas fa-download me-2"></i>
+                            Export JSON
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportRCA() {
+    const data = {
+        incident_id: "{{ rca.incident_id }}",
+        incident_description: "{{ rca.incident_description }}",
+        root_cause: "{{ rca.root_cause }}",
+        confidence_score: {{ rca.confidence_score }},
+        analyzed_at: "{{ rca.analyzed_at.isoformat() }}",
+        status: "{{ rca.status }}"
+    };
+    
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+    const downloadElement = document.createElement('a');
+    downloadElement.setAttribute("href", dataStr);
+    downloadElement.setAttribute("download", `rca_${Date.now()}.json`);
+    document.body.appendChild(downloadElement);
+    downloadElement.click();
+    downloadElement.remove();
+}
+</script>
+{% endblock %}

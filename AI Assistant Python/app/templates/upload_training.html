@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Upload Training Data{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-upload"></i> Upload Training Data</h3>
+                    <p class="mb-0 text-muted">Upload Excel files with incident examples and resolutions</p>
+                </div>
+                <div class="card-body">
+                    {% if success %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> {{ message }}
+                        {% if details %}
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Import Summary:</strong>
+                                <ul class="list-unstyled mt-2">
+                                    <li><i class="fas fa-check text-success"></i> Successful: {{ details.success_count }}</li>
+                                    <li><i class="fas fa-times text-danger"></i> Errors: {{ details.error_count }}</li>
+                                    <li><i class="fas fa-table text-info"></i> Total Rows: {{ details.total_rows }}</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Column Detection:</strong>
+                                <ul class="list-unstyled mt-2">
+                                    <li><i class="fas fa-exclamation-triangle"></i> Incident: {{ details.incident_column or 'Not detected' }}</li>
+                                    <li><i class="fas fa-tools"></i> Resolution: {{ details.resolution_column or 'Not detected' }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                        {% if details.errors %}
+                        <hr>
+                        <strong>First Few Errors:</strong>
+                        <ul class="list-unstyled mt-2">
+                            {% for error in details.errors %}
+                            <li><small class="text-danger">{{ error }}</small></li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> {{ message }}
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <h5><i class="fas fa-info-circle text-info"></i> How It Works</h5>
+                        <div class="alert alert-info">
+                            <p><strong>Intelligent Column Detection:</strong> The system automatically detects incident and resolution columns based on:</p>
+                            <ul class="mb-2">
+                                <li><strong>Column Names:</strong> Looks for keywords like "incident", "problem", "resolution", "solution", etc.</li>
+                                <li><strong>Content Analysis:</strong> Analyzes cell content to identify incident descriptions and resolution steps</li>
+                                <li><strong>Smart Fallback:</strong> Uses the first text columns if specific patterns aren't found</li>
+                            </ul>
+                            <p class="mb-0"><strong>Supported Formats:</strong> Excel files (.xlsx, .xls) with any column structure</p>
+                        </div>
+                    </div>
+
+                    <form action="/upload-training-data" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="file" class="form-label">
+                                <i class="fas fa-file-excel"></i> Excel File
+                            </label>
+                            <input class="form-control" type="file" id="file" name="file" accept=".xlsx,.xls" required>
+                            <div class="form-text">
+                                Upload an Excel file with incident examples and their resolutions. 
+                                The system will automatically detect the appropriate columns.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6><i class="fas fa-lightbulb text-warning"></i> Tips for Best Results</h6>
+                            <ul class="text-muted small">
+                                <li>Use descriptive column headers (e.g., "Incident Description", "Resolution Steps")</li>
+                                <li>Include diverse incident types and detailed resolutions</li>
+                                <li>Ensure incident descriptions are clear and specific</li>
+                                <li>Resolution steps should be actionable and detailed</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary btn-lg" type="submit">
+                                <i class="fas fa-cloud-upload-alt"></i> Upload Training Data
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-table"></i> Example Excel Structure</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Your Excel file can have any structure. Here are some examples that work well:</p>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Option 1: Separate Columns</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Incident Description</th>
+                                            <th>Resolution Steps</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Server not responding</td>
+                                            <td>1. Check server status<br>2. Restart if needed</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Option 2: Any Column Names</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Problem</th>
+                                            <th>Solution</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Application error 500</td>
+                                            <td>Check logs and restart application</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

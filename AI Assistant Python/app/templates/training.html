@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Training Data{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-database me-2"></i>Training Data
+                </h2>
+                <a href="/upload-training" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Add Training Data
+                </a>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>{{ success }}
+            </div>
+            {% endif %}
+
+            {% if training_data %}
+            <div class="row">
+                {% for entry in training_data %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-start">
+                            <h6 class="card-title mb-0 flex-grow-1">Training Example #{{ loop.index }}</h6>
+                            {% if entry.category %}
+                            <span class="badge bg-secondary ms-2">{{ entry.category }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong class="text-primary">Incident:</strong>
+                                <p class="card-text">{{ entry.incident_description[:150] }}{% if entry.incident_description|length > 150 %}...{% endif %}</p>
+                            </div>
+                            
+                            {% if entry.expected_root_cause %}
+                            <div class="mb-3">
+                                <strong class="text-success">Resolution:</strong>
+                                <p class="card-text">{{ entry.expected_root_cause[:150] }}{% if entry.expected_root_cause|length > 150 %}...{% endif %}</p>
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-layer-group me-1"></i>
+                                    Type: <span class="badge bg-info">{{ entry.expected_incident_type or 'Not specified' }}</span>
+                                </small>
+                            </div>
+
+                            {% if entry.expected_urgency %}
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-exclamation me-1"></i>
+                                    Urgency: 
+                                    {% if entry.expected_urgency == 'Critical' %}
+                                    <span class="badge bg-danger">{{ entry.expected_urgency }}</span>
+                                    {% elif entry.expected_urgency == 'High' %}
+                                    <span class="badge bg-warning">{{ entry.expected_urgency }}</span>
+                                    {% elif entry.expected_urgency == 'Medium' %}
+                                    <span class="badge bg-primary">{{ entry.expected_urgency }}</span>
+                                    {% else %}
+                                    <span class="badge bg-success">{{ entry.expected_urgency }}</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    Added: {{ entry.created_at.strftime('%Y-%m-%d %H:%M') if entry.created_at else 'Unknown' }}
+                                </small>
+                                <br>
+                                <small class="text-muted">
+                                    <i class="fas fa-source me-1"></i>
+                                    Source: {{ entry.source or 'Manual' }}
+                                </small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTraining({{ entry.id }}, 'Training Example #{{ loop.index }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="mt-4">
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-info-circle me-1"></i>How Training Data Works
+                    </h6>
+                    <p class="mb-0">
+                        The AI assistant uses these training examples to learn patterns and improve incident analysis. 
+                        It matches new incidents to similar examples and applies learned resolution strategies.
+                        <strong>Total examples: {{ training_data|length }}</strong>
+                    </p>
+                </div>
+            </div>
+            
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-database fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No Training Data Found</h4>
+                <p class="text-muted mb-4">Upload your first Excel training file to get started.</p>
+                <a href="/upload-training" class="btn btn-primary btn-lg">
+                    <i class="fas fa-file-excel me-2"></i>Upload Training Data
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    Confirm Delete
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this training example?</p>
+                <p><strong id="deleteItemName"></strong></p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let deleteTrainingId = null;
+
+function deleteTraining(id, name) {
+    deleteTrainingId = id;
+    document.getElementById('deleteItemName').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+    if (deleteTrainingId) {
+        fetch(`/api/training/${deleteTrainingId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error deleting training data');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting training data');
+        });
+    }
+});
+</script>
+{% endblock %}

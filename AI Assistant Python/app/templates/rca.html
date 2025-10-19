@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/analyze.css">
+<style>
+.rca-step {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.rca-step h4 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rca-step .step-number {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.file-upload-area {
+    border: 2px dashed #667eea;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-upload-area:hover {
+    border-color: #764ba2;
+    background: #f0f2ff;
+}
+
+.file-upload-area i {
+    font-size: 48px;
+    color: #667eea;
+    margin-bottom: 15px;
+}
+
+.uploaded-file {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.uploaded-file .file-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.uploaded-file .file-size {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.system-checkbox {
+    display: inline-block;
+    margin-right: 15px;
+    margin-bottom: 10px;
+}
+
+.system-checkbox input[type="checkbox"] {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
+.search-window-option {
+    display: inline-block;
+    margin-right: 20px;
+}
+
+.search-window-option input[type="radio"] {
+    margin-right: 8px;
+}
+
+.analysis-options label {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.analysis-options input[type="checkbox"] {
+    margin-right: 10px;
+    transform: scale(1.1);
+}
+</style>
+{% endblock %}
+
+{% block title %}Root Cause Analysis - AI Duty Officer Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Hero Section -->
+    <div class="hero-section mb-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 mx-auto">
+                    <div class="hero-content text-center">
+                        <div class="hero-icon mb-4">
+                            <i class="fas fa-microscope"></i>
+                        </div>
+                        <h1 class="hero-title mb-3">Root Cause Analysis</h1>
+                        <p class="hero-description">
+                            Deep investigation with system logs to identify the true cause of incidents
+                        </p>
+                        <div class="hero-stats mt-4">
+                            <div class="stat-item">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Upload Logs</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Analyze Timeline</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>Find Root Cause</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <form action="/rca/analyze" method="POST" enctype="multipart/form-data" id="rcaForm">
+                    
+                    <!-- Step 1: Incident Information -->
+                    <div class="rca-step">
+                        <h4>
+                            <span class="step-number">1</span>
+                            Incident Information
+                        </h4>
+                        
+                        <div class="mb-3">
+                            <label for="incident_description" class="form-label">
+                                <i class="fas fa-file-alt me-2"></i>Incident Description
+                            </label>
+                            <textarea 
+                                class="form-control" 
+                                id="incident_description" 
+                                name="incident_description" 
+                                rows="4" 
+                                required
+                                placeholder="Describe the incident in detail. What happened? When did it start? What symptoms did you observe?"></textarea>
+                            <div class="form-text">Be as specific as possible. Include error messages, affected services, and any unusual behavior.</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="incident_start_time" class="form-label">
+                                    <i class="fas fa-calendar-alt me-2"></i>When did it start?
+                                </label>
+                                <input 
+                                    type="datetime-local" 
+                                    class="form-control" 
+                                    id="incident_start_time" 
+                                    name="incident_start_time" 
+                                    required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="incident_end_time" class="form-label">
+                                    <i class="fas fa-calendar-check me-2"></i>When did it end? (optional)
+                                </label>
+                                <input 
+                                    type="datetime-local" 
+                                    class="form-control" 
+                                    id="incident_end_time" 
+                                    name="incident_end_time">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-server me-2"></i>Affected System(s)
+                            </label>
+                            <div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_container" name="affected_systems" value="Container">
+                                    <label for="sys_container">Container Management</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_vessel" name="affected_systems" value="Vessel">
+                                    <label for="sys_vessel">Vessel Operations</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_edi" name="affected_systems" value="EDI">
+                                    <label for="sys_edi">EDI/API</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_gate" name="affected_systems" value="Gate">
+                                    <label for="sys_gate">Gate System</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_billing" name="affected_systems" value="Billing">
+                                    <label for="sys_billing">Billing</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_database" name="affected_systems" value="Database">
+                                    <label for="sys_database">Database</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_network" name="affected_systems" value="Network">
+                                    <label for="sys_network">Network</label>
+                                </div>
+                                <div class="system-checkbox">
+                                    <input type="checkbox" id="sys_other" name="affected_systems" value="Other">
+                                    <label for="sys_other">Other</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 2: Upload System Logs -->
+                    <div class="rca-step">
+                        <h4>
+                            <span class="step-number">2</span>
+                            Upload System Logs
+                        </h4>
+                        
+                        <div class="file-upload-area" onclick="document.getElementById('log_files').click()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <h5>Drag & drop log files here or click to browse</h5>
+                            <p class="text-muted mb-0">
+                                Supported formats: .log, .txt, .json, .csv (Max 10 files, 50MB each)
+                            </p>
+                        </div>
+                        
+                        <input 
+                            type="file" 
+                            id="log_files" 
+                            name="log_files" 
+                            multiple 
+                            accept=".log,.txt,.json,.csv"
+                            style="display: none;"
+                            onchange="handleFileSelect(event)">
+                        
+                        <div id="uploaded-files-list" class="mt-3"></div>
+                    </div>
+                    
+                    <!-- Step 3: Analysis Options -->
+                    <div class="rca-step">
+                        <h4>
+                            <span class="step-number">3</span>
+                            Analysis Options
+                        </h4>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-clock me-2"></i>Search Window
+                            </label>
+                            <div>
+                                <div class="search-window-option">
+                                    <input type="radio" id="window_30" name="search_window_hours" value="0.5">
+                                    <label for="window_30">±30 minutes</label>
+                                </div>
+                                <div class="search-window-option">
+                                    <input type="radio" id="window_2" name="search_window_hours" value="2" checked>
+                                    <label for="window_2">±2 hours</label>
+                                </div>
+                                <div class="search-window-option">
+                                    <input type="radio" id="window_6" name="search_window_hours" value="6">
+                                    <label for="window_6">±6 hours</label>
+                                </div>
+                                <div class="search-window-option">
+                                    <input type="radio" id="window_24" name="search_window_hours" value="24">
+                                    <label for="window_24">±24 hours</label>
+                                </div>
+                            </div>
+                            <div class="form-text">How far before and after the incident time should we search the logs?</div>
+                        </div>
+                        
+                        <div class="analysis-options">
+                            <label class="form-label">
+                                <i class="fas fa-cogs me-2"></i>Include in Analysis
+                            </label>
+                            <label>
+                                <input type="checkbox" name="include_error_patterns" checked>
+                                Error pattern detection
+                            </label>
+                            <label>
+                                <input type="checkbox" name="include_warning_cascade" checked>
+                                Warning cascade analysis
+                            </label>
+                            <label>
+                                <input type="checkbox" name="include_similar_incidents" checked>
+                                Search for similar past incidents
+                            </label>
+                            <label>
+                                <input type="checkbox" name="include_sop" checked>
+                                Recommend SOPs and solutions
+                            </label>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg btn-action w-100">
+                                <i class="fas fa-microscope me-2"></i>
+                                Analyze Root Cause
+                            </button>
+                        </div>
+                    </div>
+                    
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function handleFileSelect(event) {
+    const files = event.target.files;
+    const filesList = document.getElementById('uploaded-files-list');
+    filesList.innerHTML = '';
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileSize = (file.size / 1024 / 1024).toFixed(2); // MB
+        
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'uploaded-file';
+        fileDiv.innerHTML = `
+            <div class="file-info">
+                <i class="fas fa-file-alt text-primary"></i>
+                <span><strong>${file.name}</strong></span>
+                <span class="file-size">${fileSize} MB</span>
+            </div>
+            <i class="fas fa-check-circle text-success"></i>
+        `;
+        filesList.appendChild(fileDiv);
+    }
+}
+
+// Set default incident time to now
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const localDateTime = now.getFullYear() + '-' + 
+        String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(now.getDate()).padStart(2, '0') + 'T' + 
+        String(now.getHours()).padStart(2, '0') + ':' + 
+        String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('incident_start_time').value = localDateTime;
+});
+</script>
+{% endblock %}

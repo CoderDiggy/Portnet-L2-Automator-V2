@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/analyze.css">
+{% endblock %}
+
+{% block title %}Analyze Incident - AI Duty Officer Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Page Header -->
+    <div class="page-header-section mb-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 mx-auto">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h2 class="fw-bold mb-2">
+                                <i class="fas fa-search text-primary me-2"></i>
+                                Incident Analysis
+                            </h2>
+                            <p class="text-muted mb-0">AI-powered maritime operations incident resolution</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                
+                <!-- Main Analysis Form -->
+                <div class="card analysis-card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-gradient-primary text-white border-0 py-3">
+                        <h5 class="card-title mb-0 fw-bold">
+                            <i class="fas fa-edit me-2"></i>
+                            Describe the Incident
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form method="post" action="/analyze" enctype="multipart/form-data" id="incidentForm">
+                            <!-- Incident Description -->
+                            <div class="mb-4">
+                                <label for="incidentDescription" class="form-label fw-bold mb-2">
+                                    <i class="fas fa-file-alt text-primary me-1"></i>
+                                    Incident Description 
+                                    <span class="required-badge">*</span>
+                                </label>
+                                <textarea 
+                                    class="form-control form-control-lg" 
+                                    id="incidentDescription" 
+                                    name="incident_description"
+                                    rows="5" 
+                                    placeholder="Provide a detailed description of the maritime operations incident..."
+                                    required>{% if preloaded_description %}{{ preloaded_description }}{% endif %}</textarea>
+                                <div class="form-text mt-2">
+                                    <i class="fas fa-lightbulb text-warning me-1"></i>
+                                    <span class="text-muted">Include system names, error messages, container numbers, vessel details, or any relevant identifiers</span>
+                                </div>
+                                <div class="char-counter text-end mt-1">
+                                    <small class="text-muted">
+                                        <span id="charCount">0</span> characters
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Image Upload Section -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold mb-2">
+                                    <i class="fas fa-camera text-primary me-1"></i>
+                                    Incident Images 
+                                    <span class="text-muted fw-normal">(Optional)</span>
+                                </label>
+                                
+                                <!-- Drag and Drop Area -->
+                                <div class="upload-area" id="uploadArea">
+                                    <input 
+                                        class="d-none" 
+                                        type="file" 
+                                        id="incidentImages" 
+                                        name="incident_images"
+                                        accept="image/*"
+                                        multiple>
+                                    <div class="upload-content text-center">
+                                        <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                        <h6 class="fw-bold mb-2">Drag & Drop Images Here</h6>
+                                        <p class="text-muted mb-3">or</p>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="browseBtn">
+                                            <i class="fas fa-folder-open me-1"></i>
+                                            Browse Files
+                                        </button>
+                                        <p class="text-muted small mt-3 mb-0">Supported formats: JPG, PNG, GIF, WebP</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Camera Button -->
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-outline-secondary" id="openCameraBtn">
+                                        <i class="fas fa-video me-2"></i>
+                                        Take Photo with Camera
+                                    </button>
+                                </div>
+                                
+                                <!-- Image Preview Grid -->
+                                <div id="imagePreview" class="image-preview-grid mt-3"></div>
+                            </div>
+                            
+                            <!-- Source Selection -->
+                            <div class="mb-4">
+                                <label for="incidentSource" class="form-label fw-bold mb-2">
+                                    <i class="fas fa-info-circle text-primary me-1"></i>
+                                    Incident Source
+                                </label>
+                                <select class="form-select form-select-lg" id="incidentSource" name="incident_source">
+                                    <option value="Manual" selected>📝 Manual Entry</option>
+                                    <option value="Email">📧 Email</option>
+                                    <option value="SMS">💬 SMS</option>
+                                    <option value="Call">📞 Phone Call</option>
+                                    <option value="System">🖥️ System Alert</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Submit Button -->
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg btn-analyze shadow-sm" id="analyzeBtn">
+                                    <i class="fas fa-brain me-2"></i>
+                                    <span class="btn-text">Analyze Incident with AI</span>
+                                    <div class="spinner-border spinner-border-sm ms-2" role="status" style="display: none;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Sample Test Cases -->
+                {% if test_cases %}
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 py-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <h5 class="card-title mb-0 fw-bold">
+                                <i class="fas fa-vial me-2 text-primary"></i>
+                                Sample Test Cases
+                            </h5>
+                            <span class="badge bg-primary-subtle text-primary">Click to load</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            {% for case in test_cases %}
+                            <div class="col-lg-6">
+                                <div class="test-case-card card h-100 border priority-{{ case.priority|lower }}" 
+                                     onclick="loadTestCase('{{ case.description|e }}')">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-start">
+                                            <div class="test-case-icon me-3">
+                                                <i class="{{ case.icon }} fa-lg"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="card-title fw-bold mb-2">{{ case.title }}</h6>
+                                                <p class="card-text small text-muted mb-3">{{ case.description }}</p>
+                                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                    <span class="badge bg-secondary-subtle text-secondary">{{ case.category }}</span>
+                                                    <span class="badge bg-info-subtle text-info">{{ case.source }}</span>
+                                                    <span class="badge priority-badge-{{ case.priority|lower }}">
+                                                        {{ case.priority }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Modal -->
+<div class="modal fade" id="cameraModal" tabindex="-1" aria-labelledby="cameraModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient-primary text-white border-0">
+                <h5 class="modal-title fw-bold" id="cameraModalLabel">
+                    <i class="fas fa-camera me-2"></i>
+                    Take Incident Photo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div id="cameraContainer" style="display: none;">
+                    <video id="cameraVideo" autoplay muted playsinline class="camera-video"></video>
+                    <canvas id="photoCanvas" style="display: none;"></canvas>
+                </div>
+                <div id="cameraError" class="alert alert-warning d-none" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="errorMessage">Camera access is required to take photos.</span>
+                </div>
+                <div id="cameraLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading camera...</span>
+                    </div>
+                    <p class="text-muted mb-0">Requesting camera access...</p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-success d-none" id="capturePhotoBtn">
+                    <i class="fas fa-camera me-1"></i>Capture Photo
+                </button>
+                <button type="button" class="btn btn-primary d-none" id="retakePhotoBtn">
+                    <i class="fas fa-redo me-1"></i>Take Another
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invalid Input Modal -->
+<div class="modal fade" id="invalidInputDialog" tabindex="-1" aria-labelledby="invalidInputDialogLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning-subtle border-0">
+                <h5 class="modal-title fw-bold" id="invalidInputDialogLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    Invalid Input
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="invalidInputText"></div>
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                    <i class="fas fa-check me-1"></i>OK
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/analyze.js"></script>
+{% endblock %}
