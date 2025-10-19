@@ -341,17 +341,67 @@
                 </div>
                 {% endif %}
 
-                <!-- Recommended Solutions & SOPs -->
-                {% if rca.recommended_solutions %}
+                <!-- Enhanced Recommended Solutions & SOPs -->
+                {% if recommended_solutions or rca.recommended_solutions %}
                 <div class="rca-section">
                     <h5 class="fw-bold mb-4">
-                        <i class="fas fa-tools me-2 text-primary"></i>
-                        Recommended Solutions & SOPs
+                        <i class="fas fa-lightbulb me-2 text-warning"></i>
+                        AI-Powered Recommended Solutions
+                        <span class="badge bg-primary ms-2">{{ (recommended_solutions or rca.recommended_solutions)|length }}</span>
                     </h5>
-                    {% for solution in rca.recommended_solutions %}
-                    <div class="solution-card">
-                        <h6 class="fw-bold mb-2">{{ solution.title }}</h6>
-                        <div class="mb-0">{{ solution.content }}</div>
+                    {% set solutions_to_show = recommended_solutions or rca.recommended_solutions %}
+                    {% for solution in solutions_to_show %}
+                    <div class="solution-card mb-3 p-3 border rounded">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="fw-bold mb-0 text-primary">{{ solution.title or solution.get('title', 'Solution #' + loop.index|string) }}</h6>
+                            {% if solution.relevance_score %}
+                            <span class="badge bg-success">{{ solution.relevance_score }}% Match</span>
+                            {% endif %}
+                        </div>
+                        <p class="mb-2">{{ solution.description or solution.content or solution.get('description', 'No description available') }}</p>
+                        <div class="small text-muted">
+                            <i class="fas fa-tag me-1"></i>{{ solution.type or solution.get('type', 'Training Case') }} 
+                            {% if solution.source %}| <i class="fas fa-database me-1"></i>{{ solution.source }}{% endif %}
+                            {% if solution.category %}| <i class="fas fa-folder me-1"></i>{{ solution.category }}{% endif %}
+                            {% if solution.match_type %}| <i class="fas fa-search me-1"></i>{{ solution.match_type }} match{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Enhanced SOP References -->
+                {% if sop_references or rca.sop_references %}
+                <div class="rca-section">
+                    <h5 class="fw-bold mb-4">
+                        <i class="fas fa-book me-2 text-info"></i>
+                        Standard Operating Procedures (SOPs)
+                        <span class="badge bg-info ms-2">{{ (sop_references or rca.sop_references)|length }}</span>
+                    </h5>
+                    {% set sops_to_show = sop_references or rca.sop_references %}
+                    {% for sop in sops_to_show %}
+                    <div class="sop-card mb-3 p-3 border rounded bg-light">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="fw-bold mb-0 text-info">{{ sop.title or sop.get('title', 'SOP #' + loop.index|string) }}</h6>
+                            {% if sop.relevance_score %}
+                            <span class="badge bg-info">{{ sop.relevance_score }}% Relevant</span>
+                            {% endif %}
+                        </div>
+                        <p class="mb-2">{{ sop.description or sop.content or sop.get('description', 'No description available') }}</p>
+                        {% if sop.content_preview and sop.content_preview != sop.description %}
+                        <details class="mt-2">
+                            <summary class="text-info fw-bold" style="cursor: pointer;">
+                                <i class="fas fa-eye me-1"></i>View Full Content
+                            </summary>
+                            <div class="mt-2 p-2 bg-white border rounded">{{ sop.content_preview }}</div>
+                        </details>
+                        {% endif %}
+                        <div class="small text-muted mt-2">
+                            {% if sop.category %}<i class="fas fa-tag me-1"></i>{{ sop.category }}{% endif %}
+                            {% if sop.match_type %}| <i class="fas fa-search me-1"></i>{{ sop.match_type }} match{% endif %}
+                            {% if sop.usefulness_count %}| <i class="fas fa-thumbs-up me-1"></i>Used {{ sop.usefulness_count }} times{% endif %}
+                            {% if sop.kb_id %}| <i class="fas fa-id-card me-1"></i>KB #{{ sop.kb_id }}{% endif %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
