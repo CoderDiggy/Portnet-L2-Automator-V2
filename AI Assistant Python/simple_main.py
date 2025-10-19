@@ -328,9 +328,9 @@ async def view_training(request: Request, db: Session = Depends(get_db)):
             "error": f"Error loading training data: {str(ex)}"
         })
 
-@app.get("/database-status")
-async def database_status(request: Request, db: Session = Depends(get_db)):
-    """View database status and contents"""
+@app.get("/database-detailed")
+async def database_detailed(request: Request, db: Session = Depends(get_db)):
+    """View detailed database status and contents"""
     try:
         from app.models.database import KnowledgeBase, TrainingData
         
@@ -735,37 +735,49 @@ async def mark_step_useful(
 # ========== DATABASE STATUS ROUTES ==========
 
 @app.get("/database-status", response_class=HTMLResponse)
-async def database_status(request: Request, db: Session = Depends(get_db)):
+async def database_status_new(request: Request, db: Session = Depends(get_db)):
     """Check database connection status"""
     
     status = {
-        "database": {"connected": False, "error": None, "info": {}}
+        "ai_database": {"connected": False, "error": None, "info": {}},
+        "ops_database": {"connected": False, "error": None, "info": {}}
     }
     
-    # Test database
+    # Test AI database
     try:
-        from app.models.database import KnowledgeBase, TrainingData, Vessel, Container, EDIMessage, APIEvent
+        from app.models.database import KnowledgeBase, TrainingData
         kb_count = db.query(KnowledgeBase).count()
         training_count = db.query(TrainingData).count()
         rca_count = db.query(RootCauseAnalysis).count()
+        
+        status["ai_database"]["connected"] = True
+        status["ai_database"]["info"] = {
+            "type": "SQLite",
+            "knowledge_base_entries": kb_count,
+            "training_data_entries": training_count,
+            "rca_analyses": rca_count
+        }
+    except Exception as ex:
+        status["ai_database"]["error"] = str(ex)
+    
+    # Test operational database (may not exist)
+    try:
+        from app.models.database import Vessel, Container, EDIMessage, APIEvent
         vessel_count = db.query(Vessel).count()
         container_count = db.query(Container).count()
         edi_count = db.query(EDIMessage).count()
         api_count = db.query(APIEvent).count()
         
-        status["database"]["connected"] = True
-        status["database"]["info"] = {
+        status["ops_database"]["connected"] = True
+        status["ops_database"]["info"] = {
             "type": "SQLite",
-            "knowledge_base_entries": kb_count,
-            "training_data_entries": training_count,
-            "rca_analyses": rca_count,
             "vessels": vessel_count,
             "containers": container_count,
             "edi_messages": edi_count,
             "api_events": api_count
         }
     except Exception as ex:
-        status["database"]["error"] = str(ex)
+        status["ops_database"]["error"] = str(ex)
     
     return templates.TemplateResponse("database_status.html", {
         "request": request,
