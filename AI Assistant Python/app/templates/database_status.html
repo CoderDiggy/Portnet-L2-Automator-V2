@@ -89,60 +89,6 @@
                 {% endif %}
             </div>
             
-            <!-- Operational Database Status -->
-            <div class="status-card">
-                <h4>
-                    <i class="fas fa-ship me-2"></i>
-                    Operational Database (PORTNET)
-                    {% if status.ops_database.connected %}
-                    <span class="status-connected float-end">
-                        <i class="fas fa-check-circle"></i> Connected
-                    </span>
-                    {% else %}
-                    <span class="status-disconnected float-end">
-                        <i class="fas fa-times-circle"></i> Disconnected
-                    </span>
-                    {% endif %}
-                </h4>
-                
-                {% if status.ops_database.connected %}
-                <table class="info-table">
-                    <tr>
-                        <td>Database Type</td>
-                        <td>{{ status.ops_database.info.type }}</td>
-                    </tr>
-                    <tr>
-                        <td>Vessels</td>
-                        <td>{{ status.ops_database.info.vessels }}</td>
-                    </tr>
-                    <tr>
-                        <td>Containers</td>
-                        <td>{{ status.ops_database.info.containers }}</td>
-                    </tr>
-                    <tr>
-                        <td>EDI Messages</td>
-                        <td>{{ status.ops_database.info.edi_messages }}</td>
-                    </tr>
-                    <tr>
-                        <td>API Events</td>
-                        <td>{{ status.ops_database.info.api_events }}</td>
-                    </tr>
-                </table>
-                <div class="alert alert-info mt-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>RCA Integration Active:</strong> Root Cause Analysis can now correlate incidents with actual operational data (containers, vessels, EDI messages, API events).
-                </div>
-                {% else %}
-                <div class="alert alert-warning mt-3">
-                    <strong>Warning:</strong> Operational database is not available. RCA will still work but cannot correlate with container/vessel data.
-                    <br><br>
-                    <strong>Error:</strong> {{ status.ops_database.error }}
-                    <br><br>
-                    <strong>To fix:</strong> Update <code>OPS_DATABASE_URL</code> in <code>.env</code> file with valid MySQL connection string.
-                </div>
-                {% endif %}
-            </div>
-            
             <!-- Actions -->
             <div class="text-center mt-4">
                 <a href="/" class="btn btn-primary">
