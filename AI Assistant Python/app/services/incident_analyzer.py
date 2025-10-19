@@ -38,12 +38,21 @@ def extract_error_type(description: str) -> str:
     "Unknown error" -> "unknown_error"
     """
     patterns = [
-        (r"unexpected qualifier", "unexpected_qualifier"),
+        # Enhanced EDIFACT and port-specific patterns
+        (r"unexpected qualifier.*['\"]\w+['\"]\s+in\s+\w+\s+segment", "edifact_unexpected_qualifier"),
+        (r"coarri.*container.*translation|container.*coarri.*error", "coarri_container_error"),
+        (r"edifact.*parse|edifact.*format|edifact.*message", "edifact_parsing_error"),
+        (r"codeco.*error|codeco.*reject", "codeco_error"),
+        (r"coprar.*error|coprar.*reject", "coprar_error"),
+        (r"baplie.*error|baplie.*reject", "baplie_error"),
+        (r"edi.*message.*stuck|edi.*stuck.*error", "edi_message_stuck"),
+        (r"segment.*error|segment.*reject|segment.*invalid", "edi_segment_error"),
         (r"time ?zone drift", "timezone_drift"),
         (r"dlq.*spike|spike.*dlq|dlq messages", "dlq_spike"),
         (r"vessel_err|vessel error", "vessel_err"),
-        (r"edi.*error|edi message.*error", "edi_error"),
         (r"duplicate.*container|container.*duplication", "container_duplication"),
+        (r"cntr.*duplicate|cntr.*error", "container_reference_error"),
+        (r"booking.*duplicate|booking.*conflict", "booking_conflict"),
         (r"timeout", "timeout"),
         (r"deadlock", "deadlock"),
         (r"connection refused", "connection_refused"),

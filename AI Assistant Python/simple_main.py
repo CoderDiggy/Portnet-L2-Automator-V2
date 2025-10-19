@@ -925,29 +925,361 @@ async def analyze_root_cause(
         # Search training data for similar incidents and use AI to generate hypotheses
         logger.info(f"🤖 Using AI to analyze incident description against 323 training examples...")
         training_service = TrainingDataService(db)
-        similar_incidents = await training_service.find_relevant_examples_async(
-            incident_description, 
-            limit=10
-        )
-        logger.info(f"✅ Found {len(similar_incidents)} similar past incidents")
         
-        # Generate AI-powered root cause hypotheses
+        # Get initial similar incidents (larger pool for filtering)
+        initial_similar_incidents = await training_service.find_relevant_examples_async(
+            incident_description, 
+            limit=25  # Get more to filter from
+        )
+        
+        # Enhanced filtering for more relevant incidents
+        def calculate_incident_relevance(incident, target_description):
+            """Calculate relevance score for incident based on multiple factors"""
+            score = 0
+            target_lower = target_description.lower()
+            incident_lower = (incident.incident_description or "").lower()
+            
+            # Factor 1: Exact keyword matches (high value)
+            import re
+            target_keywords = set(re.findall(r'\b\w{4,}\b', target_lower))  # Words 4+ chars
+            incident_keywords = set(re.findall(r'\b\w{4,}\b', incident_lower))
+            keyword_overlap = len(target_keywords.intersection(incident_keywords))
+            score += keyword_overlap * 10
+            
+            # Factor 2: Technical term matches (very high value)
+            tech_terms = ['edifact', 'coarri', 'codeco', 'coprar', 'container', 'vessel', 'cntr', 'baplie']
+            for term in tech_terms:
+                if term in target_lower and term in incident_lower:
+                    score += 50
+            
+            # Factor 3: Error pattern similarity
+            error_patterns = ['error', 'fail', 'reject', 'invalid', 'timeout', 'duplicate', 'mismatch', 'stuck']
+            matching_error_patterns = [p for p in error_patterns if p in target_lower and p in incident_lower]
+            score += len(matching_error_patterns) * 15
+            
+            # Factor 4: Category similarity
+            if hasattr(incident, 'category') and incident.category:
+                category_keywords = incident.category.lower().split()
+                for cat_word in category_keywords:
+                    if cat_word in target_lower:
+                        score += 25
+            
+            # Factor 5: Historical usefulness
+            if hasattr(incident, 'usefulness_count_int'):
+                score += incident.usefulness_count_int * 5
+            
+            # Factor 6: Length similarity (prefer similar complexity)
+            length_diff = abs(len(target_description) - len(incident.incident_description or ""))
+            if length_diff < 100:  # Similar length incidents
+                score += 20
+            
+            return score
+        
+        # Score and filter similar incidents
+        scored_incidents = []
+        for incident in initial_similar_incidents:
+            relevance_score = calculate_incident_relevance(incident, incident_description)
+            if relevance_score >= 30:  # Minimum relevance threshold
+                scored_incidents.append({
+                    'incident': incident,
+                    'relevance_score': relevance_score
+                })
+        
+        # Sort by relevance score and take top 5 most relevant
+        scored_incidents.sort(key=lambda x: x['relevance_score'], reverse=True)
+        similar_incidents = [item['incident'] for item in scored_incidents[:5]]
+        
+        logger.info(f"✅ Found {len(similar_incidents)} highly relevant past incidents (filtered from {len(initial_similar_incidents)} candidates)")
+        if scored_incidents:
+            avg_relevance = sum(item['relevance_score'] for item in scored_incidents[:5]) / min(5, len(scored_incidents))
+            logger.info(f"📊 Average relevance score: {avg_relevance:.1f} (range: {scored_incidents[-1]['relevance_score'] if scored_incidents else 0}-{scored_incidents[0]['relevance_score'] if scored_incidents else 0})")
+        
+        # Log top 3 most relevant incidents for transparency
+        logger.info("🎯 Top relevant past incidents:")
+        for i, scored_item in enumerate(scored_incidents[:3], 1):
+            incident = scored_item['incident']
+            score = scored_item['relevance_score']
+            desc_preview = (incident.incident_description or "")[:80] + "..." if len(incident.incident_description or "") > 80 else incident.incident_description or ""
+            logger.info(f"   {i}. [Score: {score}] {desc_preview}")
+
+        # === ENHANCED AI-POWERED RECOMMENDED SOLUTIONS & SOPs SEARCH ===
+        logger.info(f"🔍 Performing enhanced AI-powered solution search...")
+        
+        # Enhanced keyword extraction from incident description
+        def extract_enhanced_keywords(text):
+            """Extract enhanced keywords with technical terms, error codes, and context"""
+            import re
+            keywords = set()
+            
+            # Basic word extraction (remove common words)
+            common_words = {'a', 'an', 'the', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
+            words = re.findall(r'\b\w+\b', text.lower())
+            keywords.update([w for w in words if len(w) > 3 and w not in common_words])
+            
+            # Technical patterns
+            keywords.update(re.findall(r'\b[A-Z]{3,}\b', text))  # Acronyms like EDI, API, SOP
+            keywords.update(re.findall(r'\b\w+[-_]\w+\b', text))  # Hyphenated terms
+            keywords.update(re.findall(r'\bERR[OR]*[-_]*\d+\b', text, re.IGNORECASE))  # Error codes
+            keywords.update(re.findall(r'\b\w*[Ee]rror\w*\b', text))  # Error variants
+            keywords.update(re.findall(r'\b\w*[Ff]ail\w*\b', text))  # Failure variants
+            
+            # Domain-specific terms
+            edifact_terms = re.findall(r'\b(COARRI|CODECO|COPRAR|APERAK|IFTMIN|IFTSTA)\b', text, re.IGNORECASE)
+            keywords.update(edifact_terms)
+            
+            # Container patterns
+            container_terms = re.findall(r'\b(container|cntr|segment|translator|rejection)\b', text, re.IGNORECASE)
+            keywords.update(container_terms)
+            
+            return list(keywords)
+        
+        enhanced_keywords = extract_enhanced_keywords(incident_description)
+        logger.info(f"🔍 Extracted {len(enhanced_keywords)} enhanced keywords: {enhanced_keywords[:10]}")
+        
+        # Multi-stage search strategy
+        kb_service = KnowledgeBaseService(db)
+        
+        # Stage 1: Exact phrase matching
+        logger.info("🎯 Stage 1: Exact phrase matching")
+        exact_matches_training = await training_service.find_relevant_examples_async(incident_description, limit=15)
+        exact_matches_kb = await kb_service.find_relevant_knowledge_async(incident_description, limit=10)
+        
+        # Stage 2: Enhanced keyword-based search
+        logger.info("🎯 Stage 2: Enhanced keyword search")
+        keyword_matches_training = []
+        keyword_matches_kb = []
+        
+        for keyword in enhanced_keywords[:8]:  # Top 8 keywords
+            try:
+                kw_training = await training_service.find_relevant_examples_async(keyword, limit=5)
+                kw_kb = await kb_service.find_relevant_knowledge_async(keyword, limit=3)
+                
+                # Add unique matches only
+                for match in kw_training:
+                    if not any(m.id == match.id for m in keyword_matches_training):
+                        keyword_matches_training.append(match)
+                        
+                for match in kw_kb:
+                    if not any(m.id == match.id for m in keyword_matches_kb):
+                        keyword_matches_kb.append(match)
+            except Exception as e:
+                logger.warning(f"Keyword search failed for '{keyword}': {e}")
+        
+        # Stage 3: Category-based fallback search
+        logger.info("🎯 Stage 3: Category-based fallback")
+        category_keywords = []
+        if any(term in incident_description.lower() for term in ['edifact', 'edi', 'coarri', 'codeco']):
+            category_keywords.extend(['EDI', 'EDIFACT', 'message', 'parsing', 'format'])
+        if any(term in incident_description.lower() for term in ['container', 'cntr', 'duplicate']):
+            category_keywords.extend(['Container', 'CNTR', 'duplication', 'booking'])
+        if any(term in incident_description.lower() for term in ['vessel', 'ship', 'arrival', 'eta']):
+            category_keywords.extend(['Vessel', 'Ship', 'arrival', 'scheduling'])
+        
+        category_matches_training = []
+        category_matches_kb = []
+        
+        for cat_keyword in category_keywords:
+            try:
+                cat_training = await training_service.find_relevant_examples_async(cat_keyword, limit=3)
+                cat_kb = await kb_service.find_relevant_knowledge_async(cat_keyword, limit=2)
+                
+                for match in cat_training:
+                    if not any(m.id == match.id for m in category_matches_training + keyword_matches_training + exact_matches_training):
+                        category_matches_training.append(match)
+                        
+                for match in cat_kb:
+                    if not any(m.id == match.id for m in category_matches_kb + keyword_matches_kb + exact_matches_kb):
+                        category_matches_kb.append(match)
+            except Exception as e:
+                logger.warning(f"Category search failed for '{cat_keyword}': {e}")
+        
+        # Combine and score all matches
+        def calculate_enhanced_relevance_score(text_to_match, target_description, base_score=0):
+            """Calculate enhanced relevance score with multiple factors"""
+            if not text_to_match or not target_description:
+                return base_score
+            
+            score = base_score
+            text_lower = text_to_match.lower()
+            target_lower = target_description.lower()
+            
+            # Factor 1: Exact phrase matches (high value)
+            for keyword in enhanced_keywords:
+                if keyword.lower() in text_lower:
+                    if len(keyword) > 6:  # Longer keywords are more specific
+                        score += 50
+                    elif len(keyword) > 4:
+                        score += 30
+                    else:
+                        score += 15
+            
+            # Factor 2: Technical term matches (very high value)
+            tech_terms = ['EDIFACT', 'COARRI', 'CODECO', 'COPRAR', 'container', 'vessel', 'segment', 'translator']
+            for term in tech_terms:
+                if term.lower() in text_lower and term.lower() in target_lower:
+                    score += 100
+            
+            # Factor 3: Error pattern similarity
+            error_patterns = ['error', 'fail', 'reject', 'invalid', 'timeout', 'duplicate', 'mismatch']
+            matching_patterns = [p for p in error_patterns if p in text_lower and p in target_lower]
+            score += len(matching_patterns) * 25
+            
+            # Factor 4: Text similarity (simple word overlap)
+            text_words = set(text_lower.split())
+            target_words = set(target_lower.split())
+            overlap = len(text_words.intersection(target_words))
+            if len(text_words) > 0:
+                similarity_ratio = overlap / len(text_words.union(target_words))
+                score += int(similarity_ratio * 100)
+            
+            return score
+        
+        # Score and rank training data matches with deduplication
+        all_training_matches = exact_matches_training + keyword_matches_training + category_matches_training
+        
+        # Deduplicate training matches by ID
+        unique_training_matches = []
+        seen_training_ids = set()
+        for match in all_training_matches:
+            if match.id not in seen_training_ids:
+                unique_training_matches.append(match)
+                seen_training_ids.add(match.id)
+        
+        scored_training = []
+        for match in unique_training_matches:
+            base_score = 100 + (match.usefulness_count_int * 10)  # Base score with usefulness
+            text_to_score = f"{match.incident_description} {match.expected_root_cause} {match.notes}".strip()
+            relevance_score = calculate_enhanced_relevance_score(text_to_score, incident_description, base_score)
+            
+            scored_training.append({
+                "match": match,
+                "relevance_score": relevance_score,
+                "match_type": "exact" if match in exact_matches_training else ("keyword" if match in keyword_matches_training else "category")
+            })
+        
+        # Score and rank knowledge base matches with deduplication
+        all_kb_matches = exact_matches_kb + keyword_matches_kb + category_matches_kb
+        
+        # Deduplicate knowledge base matches by ID
+        unique_kb_matches = []
+        seen_kb_ids = set()
+        for match in all_kb_matches:
+            if match.id not in seen_kb_ids:
+                unique_kb_matches.append(match)
+                seen_kb_ids.add(match.id)
+        
+        scored_kb = []
+        for match in unique_kb_matches:
+            base_score = 50 + (match.usefulness_count * 5)  # Lower base score for templates
+            text_to_score = f"{match.title} {match.content}".strip()
+            relevance_score = calculate_enhanced_relevance_score(text_to_score, incident_description, base_score)
+            
+            scored_kb.append({
+                "match": match,
+                "relevance_score": relevance_score,
+                "match_type": "exact" if match in exact_matches_kb else ("keyword" if match in keyword_matches_kb else "category")
+            })
+        
+        # Sort by relevance score (highest first)
+        scored_training.sort(key=lambda x: x["relevance_score"], reverse=True)
+        scored_kb.sort(key=lambda x: x["relevance_score"], reverse=True)
+        
+        # Take top 10 training and top 5 KB matches
+        top_training = scored_training[:10]
+        top_kb = scored_kb[:5]
+        
+        logger.info(f"✅ Enhanced search complete: {len(top_training)} training solutions, {len(top_kb)} KB solutions")
+        logger.info(f"🔄 Deduplication: Training {len(all_training_matches)}→{len(unique_training_matches)}, KB {len(all_kb_matches)}→{len(unique_kb_matches)}")
+        
+        # Log KB match details for debugging
+        logger.info("🔍 KB matches found:")
+        for i, scored_match in enumerate(top_kb[:3], 1):
+            match = scored_match["match"]
+            logger.info(f"   {i}. ID:{match.id} Score:{scored_match['relevance_score']:.1f} Title:'{match.title[:50]}...'")
+        
+        # Additional check for final SOP uniqueness
+        final_sop_titles = []
+        unique_top_kb = []
+        for scored_match in top_kb:
+            match = scored_match["match"]
+            if match.title not in final_sop_titles:
+                final_sop_titles.append(match.title)
+                unique_top_kb.append(scored_match)
+        
+        if len(unique_top_kb) < len(top_kb):
+            logger.info(f"⚠️  Further SOP deduplication: {len(top_kb)}→{len(unique_top_kb)} (removed duplicate titles)")
+            top_kb = unique_top_kb
+        
+        # Format for database storage and template display
+        recommended_solutions_data = []
+        for idx, scored_match in enumerate(top_training, 1):
+            match = scored_match["match"]
+            solution = match.expected_root_cause or match.incident_description or "See training data"
+            
+            recommended_solutions_data.append({
+                "order": idx,
+                "title": f"Solution #{idx}: {match.category}" if match.category else f"Solution #{idx}",
+                "description": solution[:500] + "..." if len(solution) > 500 else solution,
+                "type": "Training Case",
+                "source": f"Training Data (Case #{match.id})",
+                "category": match.category or "General",
+                "relevance_score": min(99, max(60, int(scored_match["relevance_score"] / 10))),  # Normalize to 60-99%
+                "match_type": scored_match["match_type"],
+                "usefulness_count": match.usefulness_count_int
+            })
+        
+        sop_references_data = []
+        for idx, scored_match in enumerate(top_kb, 1):
+            match = scored_match["match"]
+            content_preview = match.content[:300] + "..." if len(match.content) > 300 else match.content
+            
+            # Ensure unique title formatting
+            sop_title = match.title
+            if sop_title in [existing["title"] for existing in sop_references_data]:
+                sop_title = f"{match.title} (#{match.id})"
+            
+            sop_references_data.append({
+                "order": idx,
+                "title": sop_title,
+                "description": match.content[:200] + "..." if len(match.content) > 200 else match.content,
+                "content_preview": content_preview,
+                "relevance_score": min(95, max(70, int(scored_match["relevance_score"] / 8))),  # Normalize to 70-95%
+                "match_type": scored_match["match_type"],
+                "usefulness_count": match.usefulness_count,
+                "category": match.category or "SOP",
+                "kb_id": match.id  # Add ID for debugging
+            })
+        
+        logger.info(f"🎯 Solution accuracy enhanced: {len(recommended_solutions_data)} solutions with avg relevance {sum(s['relevance_score'] for s in recommended_solutions_data) / len(recommended_solutions_data) if recommended_solutions_data else 0:.1f}%")
+        
+        # Generate AI-powered root cause hypotheses with enhanced context
         hypotheses = []
         if similar_incidents:
             # Use the most similar incident's solution as primary hypothesis
             most_similar = similar_incidents[0]
             from app.services.log_analyzer_service import RootCauseHypothesis
             
+            # Enhanced hypothesis with solution context
+            primary_description = most_similar.expected_root_cause if most_similar.expected_root_cause else "Root cause identified from similar incidents"
+            
+            # Add solution context if available
+            solution_context = ""
+            if recommended_solutions_data:
+                top_solution = recommended_solutions_data[0]
+                solution_context = f" Recommended solution: {top_solution['description'][:100]}..."
+            
             hypotheses.append(RootCauseHypothesis(
-                description=most_similar.expected_root_cause if most_similar.expected_root_cause else "Root cause identified from similar incidents",
+                description=primary_description + solution_context,
                 confidence=0.85,
                 evidence=[
                     f"Similar incident found: {most_similar.incident_description[:150]}...",
                     f"Category: {most_similar.category}",
-                    f"Based on {len(similar_incidents)} similar past incidents"
+                    f"Based on {len(similar_incidents)} similar past incidents",
+                    f"Enhanced with {len(recommended_solutions_data)} AI-matched solutions"
                 ],
                 contributing_factors=[
-                    most_similar.expected_root_cause[:200] if most_similar.expected_root_cause else "See similar incidents for details"
+                    most_similar.expected_root_cause[:200] if most_similar.expected_root_cause else "See similar incidents for details",
+                    f"SOP references: {len(sop_references_data)} relevant procedures found"
                 ]
             ))
         
@@ -1054,8 +1386,8 @@ async def analyze_root_cause(
             contributing_factors=[h.contributing_factors for h in hypotheses[:1]] if hypotheses else [],
             error_cascade=error_cascade,
             similar_incidents=[{"id": s.id, "description": s.incident_description[:100]} for s in similar_incidents],
-            recommended_solutions=[{"id": sop.id, "title": sop.title, "content": sop.content[:200]} for sop in relevant_sops[:5]],
-            sop_references=[{"id": sop.id, "title": sop.title} for sop in relevant_sops],
+            recommended_solutions=recommended_solutions_data,  # Use enhanced AI solutions
+            sop_references=sop_references_data,  # Use enhanced SOP references
             timeline=timeline,
             search_window_hours=int(search_window_hours),
             total_logs_analyzed=len(relevant_logs),
@@ -1067,7 +1399,7 @@ async def analyze_root_cause(
         
         logger.info(f"RCA completed for incident {incident_id}: {root_cause}")
         
-        # 10. Return results (enhanced with operational data)
+        # 10. Return results (enhanced with operational data and AI solutions)
         return templates.TemplateResponse("rca_results.html", {
             "request": request,
             "rca": rca,
@@ -1076,7 +1408,8 @@ async def analyze_root_cause(
             "error_patterns": error_patterns,
             "error_cascade": error_cascade,
             "similar_incidents": similar_incidents,
-            "recommended_solutions": relevant_sops[:5],
+            "recommended_solutions": recommended_solutions_data,  # Enhanced AI solutions
+            "sop_references": sop_references_data,  # Enhanced SOP references  
             "log_evidence": relevant_logs[:20],  # Top 20 relevant logs
             "total_logs_uploaded": len(all_logs),
             "total_logs_analyzed": len(relevant_logs),
