@@ -9,8 +9,6 @@ import logging
 from datetime import datetime
 import uuid
 from dotenv import load_dotenv
-import pandas as pd
-import io
 import base64
 import os
 
@@ -490,16 +488,12 @@ async def upload_training_data(
                 "message": "Please upload an Excel file (.xlsx or .xls)"
             })
         
-        # Read Excel file
-        content = await file.read()
-        df = pd.read_excel(io.BytesIO(content))
-        
-        if df.empty:
-            return templates.TemplateResponse("upload_training.html", {
-                "request": request,
-                "error": True,
-                "message": "Excel file is empty"
-            })
+        # Excel/CSV upload is not supported for RCA/solution logic. Please use database import scripts for training data.
+        return templates.TemplateResponse("upload_training.html", {
+            "request": request,
+            "error": True,
+            "message": "Excel/CSV upload is not supported for RCA/solution logic. Please use database import scripts for training data."
+        })
         
         # Intelligent column detection
         training_service = TrainingDataService(db)

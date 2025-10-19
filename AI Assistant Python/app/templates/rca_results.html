@@ -351,8 +351,7 @@
                     {% for solution in rca.recommended_solutions %}
                     <div class="solution-card">
                         <h6 class="fw-bold mb-2">{{ solution.title }}</h6>
-                        <p class="mb-0">{{ solution.content }}...</p>
-                        <a href="/knowledge" class="btn btn-sm btn-outline-primary mt-2">View Full SOP</a>
+                        <div class="mb-0">{{ solution.content }}</div>
                     </div>
                     {% endfor %}
                 </div>
