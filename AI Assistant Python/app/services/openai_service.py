@@ -155,7 +155,7 @@ class OpenAIService:
         # If configuration incomplete, use fallback
         if not self.configured:
             logger.warning("Using fallback analysis - Azure OpenAI not configured properly")
-            return self._create_fallback_analysis(description)
+            return self._create_fallback_analysis(description, training_data, knowledge_data)
         
         logger.info("Using Azure OpenAI for incident analysis")
         
@@ -272,8 +272,8 @@ Focus on maritime operations context including PORTNET®, container management, 
         # Fallback parsing if JSON fails
         return self._create_fallback_analysis_from_text(ai_response)
     
-    def _create_fallback_analysis(self, description: str) -> IncidentAnalysis:
-        """Create fallback analysis when AI is not available"""
+    def _create_fallback_analysis(self, description: str, training_data=None, knowledge_data=None) -> IncidentAnalysis:
+        """Create fallback analysis when AI is not available, enhanced with database knowledge"""
         description_lower = description.lower()
         
         # Simple pattern matching
@@ -305,23 +305,8 @@ Focus on maritime operations context including PORTNET®, container management, 
         elif any(word in description_lower for word in ["minor", "cosmetic"]):
             urgency = "Low"
         
-        # Enhanced root cause analysis based on patterns
-        root_cause = "Requires further investigation using diagnostic queries"
-        
-        if "container" in description_lower and any(word in description_lower for word in ["stuck", "error", "failure"]):
-            root_cause = "Container processing workflow interrupted. Likely causes: EDI message corruption, database lock, or system timeout during container status update."
-        elif "vessel" in description_lower and "arrival" in description_lower:
-            root_cause = "Vessel arrival processing issue. Possible causes: Port schedule conflict, berth availability problem, or EDI message validation failure."
-        elif "edi" in description_lower and "message" in description_lower:
-            root_cause = "EDI message processing failure. Common causes: Invalid message format, missing required fields, or communication timeout with external systems."
-        elif "gate" in description_lower:
-            root_cause = "Terminal gate operation disruption. Potential causes: Access control system malfunction, container verification failure, or database connectivity issue."
-        elif "billing" in description_lower:
-            root_cause = "Financial transaction processing error. Likely causes: Rate calculation error, missing charge configuration, or invoice generation failure."
-        elif any(word in description_lower for word in ["timeout", "slow", "performance"]):
-            root_cause = "System performance degradation. Possible causes: Database query optimization needed, high server load, or network latency issues."
-        elif any(word in description_lower for word in ["error", "exception", "failure"]):
-            root_cause = "Application error detected. Investigate system logs for specific error messages, check database connectivity, and verify service dependencies."
+        # Generate root cause analysis using database knowledge
+        root_cause = self._generate_database_root_cause(description, training_data, knowledge_data)
         
         return IncidentAnalysis(
             incident_type=incident_type,
@@ -331,6 +316,74 @@ Focus on maritime operations context including PORTNET®, container management, 
             urgency=urgency,
             affected_systems=affected_systems
         )
+    
+    def _generate_database_root_cause(self, description: str, training_data=None, knowledge_data=None) -> str:
+        """Generate root cause analysis using database knowledge"""
+        description_lower = description.lower()
+        
+        # If we have training data, look for the most relevant solutions
+        if training_data and len(training_data) > 0:
+            # Find the most relevant training examples
+            best_matches = []
+            for data in training_data[:5]:  # Take top 5 matches
+                if hasattr(data, 'solution') and data.solution:
+                    solution_text = str(data.solution).strip()
+                    if solution_text and solution_text != "None":
+                        best_matches.append({
+                            'problem': getattr(data, 'problem_statement', 'Unknown issue'),
+                            'solution': solution_text,
+                            'usefulness': getattr(data, 'usefulness_count_int', 0)
+                        })
+            
+            if best_matches:
+                # Sort by usefulness
+                best_matches.sort(key=lambda x: x['usefulness'], reverse=True)
+                top_solution = best_matches[0]
+                
+                # Generate specific root cause based on the best matching solution
+                root_cause = f"Based on similar incidents in the database: {top_solution['solution']}"
+                
+                # Add additional context from knowledge base if available
+                if knowledge_data and len(knowledge_data) > 0:
+                    kb_context = []
+                    for kb in knowledge_data[:2]:  # Take top 2 knowledge entries
+                        if hasattr(kb, 'solution') and kb.solution:
+                            kb_solution = str(kb.solution).strip()
+                            if kb_solution and kb_solution != "None":
+                                kb_context.append(kb_solution)
+                    
+                    if kb_context:
+                        root_cause += f" Additional guidance: {' '.join(kb_context[:200])}..."  # Limit length
+                
+                return root_cause
+        
+        # If we have knowledge base data but no training data matches
+        if knowledge_data and len(knowledge_data) > 0:
+            kb_solutions = []
+            for kb in knowledge_data[:3]:  # Take top 3 knowledge entries
+                if hasattr(kb, 'solution') and kb.solution:
+                    kb_solution = str(kb.solution).strip()
+                    if kb_solution and kb_solution != "None":
+                        kb_solutions.append(kb_solution)
+            
+            if kb_solutions:
+                return f"Based on knowledge base guidance: {' '.join(kb_solutions[:300])}..."  # Limit length
+        
+        # Fallback to pattern-based analysis if no database knowledge available
+        if "container" in description_lower and any(word in description_lower for word in ["stuck", "error", "failure"]):
+            return "Container processing workflow interrupted. Likely causes: EDI message corruption, database lock, or system timeout during container status update."
+        elif "vessel" in description_lower and "arrival" in description_lower:
+            return "Vessel arrival processing issue. Possible causes: Port schedule conflict, berth availability problem, or EDI message validation failure."
+        elif "edi" in description_lower and "message" in description_lower:
+            return "EDI message processing failure. Common causes: Invalid message format, missing required fields, or communication timeout with external systems."
+        elif "gate" in description_lower:
+            return "Terminal gate operation disruption. Potential causes: Access control system malfunction, container verification failure, or database connectivity issue."
+        elif "billing" in description_lower:
+            return "Financial transaction processing error. Likely causes: Rate calculation error, missing charge configuration, or invoice generation failure."
+        elif any(word in description_lower for word in ["timeout", "slow", "performance"]):
+            return "System performance degradation. Possible causes: Database query optimization needed, high server load, or network latency issues."
+        else:
+            return "Incident requires detailed analysis. Check system logs, verify database connectivity, and review recent system changes for potential root causes."
     
     def _create_fallback_analysis_from_text(self, ai_response: str) -> IncidentAnalysis:
         """Create analysis from AI text response when JSON parsing fails"""
@@ -414,6 +467,22 @@ Focus on maritime operations context including PORTNET®, container management, 
             kb_matches = kb_service.search_knowledge(error_type)
             # Also search with full description for broader matches
             kb_matches += [e for e in kb_service.search_knowledge(description) if e not in kb_matches]
+            
+            # Enhanced search: try broader category terms if specific error_type yields no results
+            if len(kb_matches) == 0:
+                broader_terms = []
+                if "edi" in error_type.lower():
+                    broader_terms = ["EDI", "EDI/API", "message", "parsing"]
+                elif "container" in error_type.lower():
+                    broader_terms = ["Container", "CNTR", "duplicate"]
+                elif "vessel" in error_type.lower():
+                    broader_terms = ["Vessel", "ship", "arrival"]
+                
+                for term in broader_terms:
+                    matches = kb_service.search_knowledge(term)
+                    kb_matches += [e for e in matches if e not in kb_matches]
+                    if len(kb_matches) >= 5:  # Limit to avoid too many results
+                        break
         elif knowledge_entries:
             kb_matches = knowledge_entries
 
@@ -429,6 +498,22 @@ Focus on maritime operations context including PORTNET®, container management, 
                 td_matches += [e for e in matches if e not in td_matches]
             # Then add error_type matches
             td_matches += [e for e in td_service.search_training_data(error_type) if e not in td_matches]
+            
+            # Enhanced search: try broader category terms if specific error_type yields no results
+            if len(td_matches) == 0:
+                broader_terms = []
+                if "edi" in error_type.lower():
+                    broader_terms = ["EDI", "EDI/API"]
+                elif "container" in error_type.lower():
+                    broader_terms = ["Container", "Container Booking", "Container Report"]
+                elif "vessel" in error_type.lower():
+                    broader_terms = ["Vessel"]
+                
+                for term in broader_terms:
+                    matches = td_service.search_training_data(term)
+                    td_matches += [e for e in matches if e not in td_matches]
+                    if len(td_matches) >= 5:  # Limit to avoid too many results
+                        break
         elif training_examples:
             td_matches = training_examples
 
@@ -457,7 +542,7 @@ Focus on maritime operations context including PORTNET®, container management, 
         description_lower = description.lower()
         for example in td_matches:
             # Training data are actual cases - give higher base score
-            relevance_score = 100 + example.usefulness_count
+            relevance_score = 100 + example.usefulness_count_int
             
             # Boost score for exact phrase matches
             incident_lower = (example.incident_description or "").lower()
@@ -495,7 +580,7 @@ Focus on maritime operations context including PORTNET®, container management, 
                 "source": "Training Data",
                 "knowledge_base_id": None,
                 "training_data_id": example.id,
-                "usefulness_count": example.usefulness_count,
+                "usefulness_count": example.usefulness_count_int,
                 "category": example.category,
                 "relevance_score": relevance_score
             })
@@ -550,7 +635,7 @@ Focus on maritime operations context including PORTNET®, container management, 
                     "source": "Training Data",
                     "knowledge_base_id": None,
                     "training_data_id": example.id,
-                    "usefulness_count": example.usefulness_count,
+                    "usefulness_count": example.usefulness_count_int,
                     "category": example.category
                 })
         

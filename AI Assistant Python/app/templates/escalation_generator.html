@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/analyze.css">
+{% endblock %}
+
+{% block title %}Escalation Summary Generator - AI Duty Officer Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Page Header -->
+    <div class="analyze-header-section mb-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 mx-auto">
+                    <div class="text-center">
+                        <h2 class="fw-bold mb-3">
+                            <i class="fas fa-bullhorn text-danger me-3"></i>
+                            Escalation Summary Generator
+                        </h2>
+                        <p class="lead text-muted mb-0">Generate automated summaries for incident escalation to other teams</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                
+                <!-- Main Form -->
+                <div class="card analyze-card border-0 shadow-lg">
+                    <div class="card-body p-5">
+                        <form id="escalationForm" action="/api/generate-escalation-summary" method="post">
+                            
+                            <!-- Incident Description -->
+                            <div class="form-group mb-4">
+                                <label for="incident_description" class="form-label fw-bold">
+                                    <i class="fas fa-file-alt text-primary me-2"></i>
+                                    Incident Description <span class="text-danger">*</span>
+                                </label>
+                                <textarea 
+                                    class="form-control form-control-lg" 
+                                    id="incident_description" 
+                                    name="incident_description" 
+                                    rows="4" 
+                                    placeholder="Describe the incident that needs escalation..."
+                                    required></textarea>
+                                <div class="form-text">Provide a detailed description of the incident requiring escalation.</div>
+                            </div>
+
+                            <div class="row g-4">
+                                <!-- Incident Type -->
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="incident_type" class="form-label fw-bold">
+                                            <i class="fas fa-tag text-info me-2"></i>
+                                            Incident Type
+                                        </label>
+                                        <select class="form-select form-select-lg" id="incident_type" name="incident_type">
+                                            <option value="System Issue">System Issue</option>
+                                            <option value="Container Management">Container Management</option>
+                                            <option value="Vessel Operations">Vessel Operations</option>
+                                            <option value="EDI Processing">EDI Processing</option>
+                                            <option value="Terminal Operations">Terminal Operations</option>
+                                            <option value="Financial Operations">Financial Operations</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Urgency -->
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="urgency" class="form-label fw-bold">
+                                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                            Urgency Level
+                                        </label>
+                                        <select class="form-select form-select-lg" id="urgency" name="urgency">
+                                            <option value="Low">Low</option>
+                                            <option value="Medium" selected>Medium</option>
+                                            <option value="High">High</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-4 mt-2">
+                                <!-- Affected Systems -->
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="affected_systems" class="form-label fw-bold">
+                                            <i class="fas fa-server text-success me-2"></i>
+                                            Affected Systems
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control form-control-lg" 
+                                            id="affected_systems" 
+                                            name="affected_systems" 
+                                            placeholder="e.g., PORTNET®, EDI System, Database"
+                                        >
+                                        <div class="form-text">Comma-separated list of affected systems.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Solutions Count -->
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="solutions_count" class="form-label fw-bold">
+                                            <i class="fas fa-tasks text-primary me-2"></i>
+                                            Known Solutions Count
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            class="form-control form-control-lg" 
+                                            id="solutions_count" 
+                                            name="solutions_count" 
+                                            value="0"
+                                            min="0"
+                                        >
+                                        <div class="form-text">Number of known solutions available.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="text-center mt-5">
+                                <button type="submit" class="btn btn-danger btn-lg px-5 py-3" id="generateBtn">
+                                    <i class="fas fa-bullhorn me-2"></i>
+                                    Generate Escalation Summary
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="mt-5" style="display: none;">
+                    <!-- Results will be populated here -->
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('escalationForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const generateBtn = document.getElementById('generateBtn');
+    const originalText = generateBtn.innerHTML;
+    
+    // Show loading state
+    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+    generateBtn.disabled = true;
+    
+    try {
+        const formData = new FormData(this);
+        const response = await fetch('/api/generate-escalation-summary', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayResults(result.escalation_summary, result.escalation_templates);
+        } else {
+            throw new Error(result.error || 'Failed to generate escalation summary');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating escalation summary: ' + error.message);
+    } finally {
+        // Restore button
+        generateBtn.innerHTML = originalText;
+        generateBtn.disabled = false;
+    }
+});
+
+function displayResults(summary, templates) {
+    const resultsSection = document.getElementById('resultsSection');
+    
+    const html = `
+        <div class="card border-0 shadow-lg">
+            <div class="card-header bg-gradient-danger text-white py-3">
+                <h5 class="card-title mb-0 fw-bold">
+                    <i class="fas fa-bullhorn me-2"></i>
+                    Generated Escalation Summary
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="escalation-item">
+                            <h6 class="fw-bold text-danger mb-2">
+                                <i class="fas fa-thermometer-half me-2"></i>Severity Level
+                            </h6>
+                            <span class="badge bg-${getSeverityClass(summary.severity_level)} fs-6">${summary.severity_level}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="escalation-item">
+                            <h6 class="fw-bold text-primary mb-2">
+                                <i class="fas fa-clock me-2"></i>Est. Resolution Time
+                            </h6>
+                            <span class="text-dark">${summary.estimated_resolution_time}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="escalation-item">
+                            <h6 class="fw-bold text-warning mb-2">
+                                <i class="fas fa-phone me-2"></i>Contact Priority
+                            </h6>
+                            <span class="badge bg-${getContactClass(summary.contact_priority)}">${summary.contact_priority}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-4 mt-2">
+                    <div class="col-md-6">
+                        <div class="escalation-item">
+                            <h6 class="fw-bold text-info mb-2">
+                                <i class="fas fa-building me-2"></i>Business Impact
+                            </h6>
+                            <p class="text-muted mb-0">${summary.business_impact}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="escalation-item">
+                            <h6 class="fw-bold text-success mb-2">
+                                <i class="fas fa-users me-2"></i>Required Expertise
+                            </h6>
+                            ${summary.required_expertise.map(team => `<span class="badge bg-success-subtle text-success me-1 mb-1">${team}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h6 class="fw-bold text-primary mb-2">
+                        <i class="fas fa-tasks me-2"></i>Recommended Actions
+                    </h6>
+                    <ul class="list-unstyled">
+                        ${summary.recommended_actions.map(action => `
+                            <li class="d-flex align-items-start mb-2">
+                                <i class="fas fa-arrow-right text-primary me-2 mt-1"></i>
+                                <span>${action}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                
+                <div class="mt-4">
+                    <h6 class="fw-bold text-dark mb-3">
+                        <i class="fas fa-comments me-2"></i>Communication Templates
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-primary w-100" onclick="showTemplate('email', '${templates.email_subject}', '${templates.email_body}')">
+                                <i class="fas fa-envelope me-2"></i>Email Template
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-info w-100" onclick="showTemplate('slack', 'Slack Message', '${templates.slack_message}')">
+                                <i class="fab fa-slack me-2"></i>Slack Template
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-success w-100" onclick="showTemplate('sms', 'SMS Message', '${templates.sms_message}')">
+                                <i class="fas fa-sms me-2"></i>SMS Template
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-warning w-100" onclick="showTemplate('teams', 'Teams Message', '${templates.teams_message}')">
+                                <i class="fab fa-microsoft me-2"></i>Teams Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    resultsSection.innerHTML = html;
+    resultsSection.style.display = 'block';
+    
+    // Scroll to results
+    resultsSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function getSeverityClass(severity) {
+    switch(severity) {
+        case 'Critical': return 'danger';
+        case 'High': return 'warning';
+        case 'Medium': return 'info';
+        default: return 'secondary';
+    }
+}
+
+function getContactClass(priority) {
+    switch(priority) {
+        case 'Emergency': return 'danger';
+        case 'Urgent': return 'warning';
+        default: return 'success';
+    }
+}
+
+function showTemplate(type, title, content) {
+    const modal = `
+        <div class="modal fade" id="templateModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${title}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <textarea class="form-control" rows="${type === 'sms' ? '4' : '15'}" readonly>${content}</textarea>
+                        <button class="btn btn-outline-primary mt-2" onclick="copyText(this)">
+                            <i class="fas fa-copy me-1"></i>Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal
+    const existingModal = document.getElementById('templateModal');
+    if (existingModal) existingModal.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', modal);
+    
+    // Show modal
+    const modalElement = new bootstrap.Modal(document.getElementById('templateModal'));
+    modalElement.show();
+}
+
+function copyText(button) {
+    const textarea = button.parentElement.querySelector('textarea');
+    textarea.select();
+    document.execCommand('copy');
+    
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+    button.classList.add('btn-success');
+    
+    setTimeout(() => {
+        button.innerHTML = originalText;
+        button.classList.remove('btn-success');
+    }, 2000);
+}
+</script>
+{% endblock %}

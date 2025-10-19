@@ -163,6 +163,210 @@
                     </div>
                 </div>
                 
+                <!-- AI Analysis Results -->
+                {% if result.analysis %}
+                <div class="card results-card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-gradient-success text-white border-0 py-3">
+                        <h5 class="card-title mb-0 fw-bold">
+                            <i class="fas fa-brain me-2"></i>
+                            AI Analysis Results
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="analysis-item">
+                                    <h6 class="fw-bold text-primary mb-2">
+                                        <i class="fas fa-tag me-2"></i>Incident Type
+                                    </h6>
+                                    <div class="analysis-value">
+                                        <span class="badge bg-primary fs-6">{{ result.analysis.incident_type }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="analysis-item">
+                                    <h6 class="fw-bold text-warning mb-2">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>Urgency
+                                    </h6>
+                                    <div class="analysis-value">
+                                        {% if result.analysis.urgency == 'Critical' or result.analysis.urgency == 'High' %}
+                                        <span class="badge bg-danger fs-6">{{ result.analysis.urgency }}</span>
+                                        {% elif result.analysis.urgency == 'Medium' %}
+                                        <span class="badge bg-warning fs-6">{{ result.analysis.urgency }}</span>
+                                        {% else %}
+                                        <span class="badge bg-success fs-6">{{ result.analysis.urgency }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="analysis-item">
+                                    <h6 class="fw-bold text-danger mb-2">
+                                        <i class="fas fa-search me-2"></i>Root Cause Analysis
+                                    </h6>
+                                    <div class="analysis-value">
+                                        <div class="alert alert-light border-start border-4 border-danger">
+                                            {{ result.analysis.root_cause }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="analysis-item">
+                                    <h6 class="fw-bold text-info mb-2">
+                                        <i class="fas fa-chart-line me-2"></i>Operational Impact
+                                    </h6>
+                                    <div class="analysis-value">
+                                        <p class="mb-0">{{ result.analysis.impact }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="analysis-item">
+                                    <h6 class="fw-bold text-secondary mb-2">
+                                        <i class="fas fa-puzzle-piece me-2"></i>Pattern Match
+                                    </h6>
+                                    <div class="analysis-value">
+                                        <p class="mb-0">{{ result.analysis.pattern_match }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if result.analysis.affected_systems %}
+                            <div class="col-12">
+                                <div class="analysis-item">
+                                    <h6 class="fw-bold text-dark mb-2">
+                                        <i class="fas fa-server me-2"></i>Affected Systems
+                                    </h6>
+                                    <div class="analysis-value">
+                                        {% for system in result.analysis.affected_systems %}
+                                        <span class="badge bg-secondary me-2 mb-1">{{ system }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Escalation Summary -->
+                {% if result.escalation_summary %}
+                <div class="card results-card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-gradient-danger text-white border-0 py-3">
+                        <h5 class="card-title mb-0 fw-bold">
+                            <i class="fas fa-bullhorn me-2"></i>
+                            Escalation Summary
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-4">
+                            <div class="col-md-4">
+                                <div class="escalation-item">
+                                    <h6 class="fw-bold text-danger mb-2">
+                                        <i class="fas fa-thermometer-half me-2"></i>Severity Level
+                                    </h6>
+                                    <div class="escalation-value">
+                                        {% set severity_class = 'danger' if result.escalation_summary.severity_level == 'Critical' else 'warning' if result.escalation_summary.severity_level == 'High' else 'info' if result.escalation_summary.severity_level == 'Medium' else 'secondary' %}
+                                        <span class="badge bg-{{ severity_class }} fs-6">{{ result.escalation_summary.severity_level }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="escalation-item">
+                                    <h6 class="fw-bold text-primary mb-2">
+                                        <i class="fas fa-clock me-2"></i>Est. Resolution Time
+                                    </h6>
+                                    <div class="escalation-value">
+                                        <span class="text-dark">{{ result.escalation_summary.estimated_resolution_time }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="escalation-item">
+                                    <h6 class="fw-bold text-warning mb-2">
+                                        <i class="fas fa-phone me-2"></i>Contact Priority
+                                    </h6>
+                                    <div class="escalation-value">
+                                        {% set contact_class = 'danger' if result.escalation_summary.contact_priority == 'Emergency' else 'warning' if result.escalation_summary.contact_priority == 'Urgent' else 'success' %}
+                                        <span class="badge bg-{{ contact_class }}">{{ result.escalation_summary.contact_priority }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-4 mt-2">
+                            <div class="col-md-6">
+                                <div class="escalation-item">
+                                    <h6 class="fw-bold text-info mb-2">
+                                        <i class="fas fa-building me-2"></i>Business Impact
+                                    </h6>
+                                    <div class="escalation-value">
+                                        <p class="text-muted mb-0">{{ result.escalation_summary.business_impact }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="escalation-item">
+                                    <h6 class="fw-bold text-success mb-2">
+                                        <i class="fas fa-users me-2"></i>Required Expertise
+                                    </h6>
+                                    <div class="escalation-value">
+                                        {% for team in result.escalation_summary.required_expertise %}
+                                        <span class="badge bg-success-subtle text-success me-1 mb-1">{{ team }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6 class="fw-bold text-primary mb-2">
+                                <i class="fas fa-tasks me-2"></i>Recommended Actions
+                            </h6>
+                            <ul class="list-unstyled">
+                                {% for action in result.escalation_summary.recommended_actions %}
+                                <li class="d-flex align-items-start mb-2">
+                                    <i class="fas fa-arrow-right text-primary me-2 mt-1"></i>
+                                    <span>{{ action }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <!-- Communication Templates -->
+                        <div class="mt-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-comments me-2"></i>Communication Templates
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="modal" data-bs-target="#emailModal">
+                                        <i class="fas fa-envelope me-2"></i>Email Template
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-info w-100" type="button" data-bs-toggle="modal" data-bs-target="#slackModal">
+                                        <i class="fab fa-slack me-2"></i>Slack Template
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-success w-100" type="button" data-bs-toggle="modal" data-bs-target="#smsModal">
+                                        <i class="fas fa-sms me-2"></i>SMS Template
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-warning w-100" type="button" data-bs-toggle="modal" data-bs-target="#teamsModal">
+                                        <i class="fab fa-microsoft me-2"></i>Teams Template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
                 
                 <!-- Solutions List -->
                 <div class="card results-card border-0 shadow-sm mb-4">
@@ -305,8 +509,141 @@
         </div>
     </div>
 </div>
+
+<!-- Communication Template Modals -->
+{% if result.escalation_templates %}
+
+<!-- Email Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emailModalLabel">
+                    <i class="fas fa-envelope me-2"></i>Email Escalation Template
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="emailSubject" class="form-label fw-bold">Subject:</label>
+                    <input type="text" class="form-control" id="emailSubject" value="{{ result.escalation_templates.email_subject }}" readonly>
+                    <button class="btn btn-sm btn-outline-secondary mt-1" onclick="copyToClipboard('emailSubject')">
+                        <i class="fas fa-copy me-1"></i>Copy Subject
+                    </button>
+                </div>
+                <div class="mb-3">
+                    <label for="emailBody" class="form-label fw-bold">Body:</label>
+                    <textarea class="form-control" id="emailBody" rows="15" readonly>{{ result.escalation_templates.email_body }}</textarea>
+                    <button class="btn btn-sm btn-outline-primary mt-1" onclick="copyToClipboard('emailBody')">
+                        <i class="fas fa-copy me-1"></i>Copy Body
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slack Modal -->
+<div class="modal fade" id="slackModal" tabindex="-1" aria-labelledby="slackModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="slackModalLabel">
+                    <i class="fab fa-slack me-2"></i>Slack Escalation Template
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="slackMessage" class="form-label fw-bold">Slack Message:</label>
+                    <textarea class="form-control" id="slackMessage" rows="10" readonly>{{ result.escalation_templates.slack_message }}</textarea>
+                    <button class="btn btn-sm btn-outline-info mt-1" onclick="copyToClipboard('slackMessage')">
+                        <i class="fas fa-copy me-1"></i>Copy Message
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SMS Modal -->
+<div class="modal fade" id="smsModal" tabindex="-1" aria-labelledby="smsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="smsModalLabel">
+                    <i class="fas fa-sms me-2"></i>SMS Escalation Template
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="smsMessage" class="form-label fw-bold">SMS Message:</label>
+                    <textarea class="form-control" id="smsMessage" rows="4" readonly>{{ result.escalation_templates.sms_message }}</textarea>
+                    <button class="btn btn-sm btn-outline-success mt-1" onclick="copyToClipboard('smsMessage')">
+                        <i class="fas fa-copy me-1"></i>Copy Message
+                    </button>
+                    <small class="text-muted d-block mt-2">
+                        Character count: <span id="smsCharCount">{{ result.escalation_templates.sms_message|length }}</span>/160
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Teams Modal -->
+<div class="modal fade" id="teamsModal" tabindex="-1" aria-labelledby="teamsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="teamsModalLabel">
+                    <i class="fab fa-microsoft me-2"></i>Microsoft Teams Escalation Template
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="teamsMessage" class="form-label fw-bold">Teams Message:</label>
+                    <textarea class="form-control" id="teamsMessage" rows="12" readonly>{{ result.escalation_templates.teams_message }}</textarea>
+                    <button class="btn btn-sm btn-outline-warning mt-1" onclick="copyToClipboard('teamsMessage')">
+                        <i class="fas fa-copy me-1"></i>Copy Message
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
 <script src="/static/js/results.js"></script>
+<script>
+// Copy to clipboard function for escalation templates
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    element.select();
+    element.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        // Show success feedback
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        btn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+        alert('Failed to copy to clipboard');
+    }
+}
+</script>
 {% endblock %}

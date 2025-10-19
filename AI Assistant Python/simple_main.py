@@ -22,7 +22,9 @@ from app.services.training_data_service import TrainingDataService
 from app.services.incident_analyzer import IncidentAnalyzer
 from app.services.log_analyzer_service import LogAnalyzerService
 from app.services.operational_data_service import OperationalDataService
+from app.services.escalation_service import EscalationService
 from app.models.database import Base, ResolutionStep, SystemLog, RootCauseAnalysis
+from app.models.schemas import EscalationSummary, EscalationTemplate
 from app.database import get_db, engine
 
 # Configure logging
@@ -51,6 +53,8 @@ class MockIncident:
         self.source = source
         self.reported_at = datetime.now()
         self.status = "New"
+        self.title = f"Incident - {source}"  # Add missing title attribute
+        self.category = "System Issue"  # Add missing category attribute
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -100,30 +104,71 @@ async def home(request: Request):
 @app.get("/analyze", response_class=HTMLResponse)
 async def analyze_get(request: Request):
     """Analyze page - GET"""
+    # Hardcoded test cases for quick incident analysis
     test_cases = [
         {
-            "description": "Customer on PORTNET is seeing 2 identical containers information for CMAU0000020",
-            "source": "Email",
-            "priority": "Medium", 
-            "title": "Container Duplication Issue",
-            "icon": "fas fa-box",
-            "category": "Container Management"
-        },
-        {
-            "description": "VESSEL_ERR_4 when creating vessel advice for MV Lion City 07",
-            "source": "Email",
+            "title": "EDI Message Processing Error",
+            "description": "EDI message stuck in processing queue with timeout error",
+            "category": "EDI/API",
             "priority": "High",
-            "title": "Vessel Operations Error", 
-            "icon": "fas fa-ship",
-            "category": "Vessel Operations"
-        },
-        {
-            "description": "EDI message REF-IFT-0007 stuck in ERROR status, ack_at is NULL",
-            "source": "SMS",
-            "priority": "High",
-            "title": "EDI Processing Failure",
             "icon": "fas fa-exchange-alt",
-            "category": "Data Integration"
+            "source": "System Alert"
+        },
+        {
+            "title": "Container Status Duplication",
+            "description": "Customer reports duplicate MSKU0000001 container showing in system",
+            "category": "Container Management",
+            "priority": "Medium",
+            "icon": "fas fa-box",
+            "source": "Customer Report"
+        },
+        {
+            "title": "Vessel Arrival Time Conflict",
+            "description": "Vessel ETA not updated causing scheduling conflicts at berth",
+            "category": "Vessel Operations",
+            "priority": "High",
+            "icon": "fas fa-ship",
+            "source": "Terminal Operations"
+        },
+        {
+            "title": "API Gateway Timeout",
+            "description": "API calls failing with 504 timeout error during peak hours",
+            "category": "System Infrastructure",
+            "priority": "Critical",
+            "icon": "fas fa-server",
+            "source": "Monitoring System"
+        },
+        {
+            "title": "Gate Transaction Failure",
+            "description": "Truck gate transactions failing with database connection timeout",
+            "category": "Terminal Operations",
+            "priority": "High",
+            "icon": "fas fa-truck",
+            "source": "Gate Operations"
+        },
+        {
+            "title": "Timezone Display Issue",
+            "description": "Container timestamps showing wrong timezone causing milestone confusion",
+            "category": "Data Quality",
+            "priority": "Medium",
+            "icon": "fas fa-clock",
+            "source": "User Report"
+        },
+        {
+            "title": "Integration Service Down",
+            "description": "PORTNET integration service not responding to external partner requests",
+            "category": "External Integration",
+            "priority": "Critical",
+            "icon": "fas fa-plug",
+            "source": "Partner Notification"
+        },
+        {
+            "title": "Booking Reference Error",
+            "description": "Unable to retrieve booking information for reference BKG123456789",
+            "category": "Booking Management",
+            "priority": "Medium",
+            "icon": "fas fa-clipboard-list",
+            "source": "Customer Service"
         }
     ]
     
@@ -174,9 +219,15 @@ async def analyze_post(
             combined_description += f"\n\nImage Analysis:\n{image_analysis}"
 
         incident = MockIncident(combined_description, incident_source)
-        # Use new OpenAIService query flow: extract error type, search KB and training, return all matches sorted by usefulness
+        
+        # Step 1: AI-powered incident analysis
+        from app.services.incident_analyzer import IncidentAnalyzer
+        analyzer = IncidentAnalyzer(db)
+        analysis, knowledge_entries, training_examples = await analyzer.analyze_incident_async(combined_description)
+        
+        # Step 2: Generate resolution plan based on analysis
         resolution_data = await openai_service.generate_resolution_plan_async(
-            combined_description, analysis=None, knowledge_entries=None, training_examples=None, db=db)
+            combined_description, analysis=analysis, knowledge_entries=knowledge_entries, training_examples=training_examples, db=db)
 
         all_solutions = resolution_data.get('steps', [])
         total_count = len(all_solutions)
@@ -198,18 +249,33 @@ async def analyze_post(
         # For now, we'll pass incident_id to frontend and use it to fetch more
         import json
         
+        # Generate escalation summary for communication
+        escalation_service = EscalationService()
+        escalation_summary = escalation_service.generate_escalation_summary(
+            incident=incident,
+            analysis=analysis,
+            solutions_count=total_count
+        )
+        escalation_templates = escalation_service.generate_escalation_templates(
+            incident=incident,
+            summary=escalation_summary
+        )
+        
         # Prepare view model for results.html
         class SolutionViewModel:
-            def __init__(self, incident, resolution_data, uploaded_images=None, total_count=0, initial_limit=15):
+            def __init__(self, incident, analysis, resolution_data, uploaded_images=None, total_count=0, initial_limit=15, escalation_summary=None, escalation_templates=None):
                 self.incident = incident
+                self.analysis = analysis  # Add incident analysis
                 self.summary = resolution_data.get("summary", "")
                 self.solutions = resolution_data.get("steps", [])[:initial_limit]  # Only initial batch
                 self.uploaded_images = uploaded_images or []
                 self.total_count = total_count
                 self.loaded_count = min(initial_limit, total_count)
                 self.has_more = total_count > initial_limit
+                self.escalation_summary = escalation_summary
+                self.escalation_templates = escalation_templates
 
-        view_model = SolutionViewModel(incident, resolution_data, uploaded_images, total_count, initial_limit)
+        view_model = SolutionViewModel(incident, analysis, resolution_data, uploaded_images, total_count, initial_limit, escalation_summary, escalation_templates)
         
         # Store the incident description for lazy loading endpoint
         request.session[f"incident_{incident.id}"] = {
@@ -275,15 +341,6 @@ async def load_more_solutions(
             status_code=500,
             content={"error": str(ex)}
         )
-
-@app.get("/test-case")
-async def test_case(request: Request, description: str = ""):
-    """Test case with preloaded description"""
-    return templates.TemplateResponse("analyze.html", {
-        "request": request,
-        "test_cases": [],
-        "preloaded_description": description
-    })
 
 @app.get("/upload-knowledge")
 async def upload_knowledge_get(request: Request):
@@ -1221,6 +1278,69 @@ async def delete_rca(rca_id: int, db: Session = Depends(get_db)):
             status_code=500,
             content={"error": str(ex)}
         )
+
+# ========== ESCALATION API ENDPOINTS ==========
+
+@app.post("/api/generate-escalation-summary")
+async def generate_escalation_summary_api(
+    incident_description: str = Form(...),
+    incident_type: str = Form("System Issue"),
+    urgency: str = Form("Medium"),
+    affected_systems: str = Form(""),  # Comma-separated string
+    solutions_count: int = Form(0),
+    db: Session = Depends(get_db)
+) -> JSONResponse:
+    """API endpoint to generate escalation summary independently"""
+    try:
+        # Create incident object
+        from app.models.schemas import Incident, IncidentAnalysis
+        
+        incident = Incident(
+            description=incident_description,
+            title=f"Incident - {incident_type}",
+            category=incident_type
+        )
+        
+        # Create analysis object
+        affected_systems_list = [s.strip() for s in affected_systems.split(",") if s.strip()] if affected_systems else []
+        analysis = IncidentAnalysis(
+            incident_type=incident_type,
+            urgency=urgency,
+            affected_systems=affected_systems_list,
+            root_cause="Generated via API call",
+            pattern_match=f"API-based analysis for {incident_type}"
+        )
+        
+        # Generate escalation summary
+        escalation_service = EscalationService()
+        escalation_summary = escalation_service.generate_escalation_summary(
+            incident=incident,
+            analysis=analysis,
+            solutions_count=solutions_count
+        )
+        
+        escalation_templates = escalation_service.generate_escalation_templates(
+            incident=incident,
+            summary=escalation_summary
+        )
+        
+        return JSONResponse(content={
+            "success": True,
+            "escalation_summary": escalation_summary.dict(),
+            "escalation_templates": escalation_templates.dict()
+        })
+        
+    except Exception as ex:
+        logger.error(f"Error generating escalation summary: {ex}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(ex)}
+        )
+
+@app.get("/escalation-generator")
+async def escalation_generator_page(request: Request):
+    """Standalone escalation summary generator page"""
+    return templates.TemplateResponse("escalation_generator.html", {"request": request})
 
 if __name__ == "__main__":
     import uvicorn

@@ -218,36 +218,70 @@ class TrainingData(Base):
     __tablename__ = "training_data"
     
     id = Column(Integer, primary_key=True, index=True)
-    incident_description = Column(Text, nullable=False)
-    expected_incident_type = Column(String(255), default="")
-    expected_pattern_match = Column(String(255), default="")
-    expected_root_cause = Column(Text, default="")
-    expected_impact = Column(Text, default="")
-    expected_urgency = Column(String(50), default="")
-    expected_affected_systems_json = Column(Text, default="")
-    category = Column(String(255), default="")
+    problem_statement = Column(Text, nullable=False)  # Maps to incident_description
+    module = Column(Text, default="")
+    mode = Column(Text, default="")
+    solution = Column(Text, default="")  # Maps to expected_root_cause
+    alert_email = Column(Text, default="")
+    urgency = Column(Text, default="")  # Maps to expected_urgency
+    affected_systems_json = Column(Text, default="")
+    category = Column(Text, default="")
     tags = Column(Text, default="")
-    notes = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = Column(String(255), default="")
-    is_validated = Column(Integer, default=0)  # 0=No, 1=Yes
-    usefulness_count = Column(Integer, default=0)
+    sop_notes = Column(Text, default="")  # Maps to notes
+    created_at = Column(Text, default="")  # String in actual DB
+    updated_at = Column(Text, default="")  # String in actual DB
+    created_by = Column(Text, default="")
+    is_validated = Column(Text, default="0")  # String in actual DB, 0=No, 1=Yes
+    usefulness_count = Column(Text, default="0")  # String in actual DB
+    
+    # Properties to maintain compatibility with existing code
+    @property
+    def incident_description(self) -> str:
+        """Map problem_statement to incident_description for compatibility"""
+        return self.problem_statement or ""
+    
+    @property
+    def expected_root_cause(self) -> str:
+        """Map solution to expected_root_cause for compatibility"""
+        return self.solution or ""
+    
+    @property
+    def expected_incident_type(self) -> str:
+        """Map module to expected_incident_type for compatibility"""
+        return self.module or ""
+    
+    @property
+    def expected_urgency(self) -> str:
+        """Map urgency field for compatibility"""
+        return self.urgency or ""
+    
+    @property
+    def notes(self) -> str:
+        """Map sop_notes to notes for compatibility"""
+        return self.sop_notes or ""
+    
+    @property 
+    def usefulness_count_int(self) -> int:
+        """Get usefulness count as integer for calculations"""
+        try:
+            return int(self.usefulness_count) if self.usefulness_count else 0
+        except (ValueError, TypeError):
+            return 0
     
     @property
     def expected_affected_systems(self) -> List[str]:
         """Get affected systems as a list"""
-        if not self.expected_affected_systems_json:
+        if not self.affected_systems_json:
             return []
         try:
-            return json.loads(self.expected_affected_systems_json)
+            return json.loads(self.affected_systems_json)
         except:
             return []
     
     @expected_affected_systems.setter
     def expected_affected_systems(self, value: List[str]):
         """Set affected systems from a list"""
-        self.expected_affected_systems_json = json.dumps(value)
+        self.affected_systems_json = json.dumps(value)
     
     def calculate_similarity(self, query: str) -> float:
         """Calculate similarity score with a query"""

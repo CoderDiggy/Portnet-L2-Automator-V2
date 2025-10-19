@@ -139,6 +139,33 @@ class AnalysisResultViewModel(BaseModel):
     class Config:
         from_attributes = True
 
+# Escalation Summary Models
+class EscalationSummary(BaseModel):
+    """Summary for incident escalation to other teams"""
+    incident_id: str
+    severity_level: str = "Medium"  # Low, Medium, High, Critical
+    business_impact: str = ""
+    technical_summary: str = ""
+    recommended_actions: List[str] = []
+    escalation_reason: str = ""
+    estimated_resolution_time: str = ""
+    required_expertise: List[str] = []
+    contact_priority: str = "Normal"  # Normal, Urgent, Emergency
+    
+    class Config:
+        from_attributes = True
+
+class EscalationTemplate(BaseModel):
+    """Template for different escalation formats"""
+    email_subject: str = ""
+    email_body: str = ""
+    sms_message: str = ""
+    slack_message: str = ""
+    teams_message: str = ""
+    
+    class Config:
+        from_attributes = True
+
 # API Response Models
 class AnalyzeRequest(BaseModel):
     incident_description: str
