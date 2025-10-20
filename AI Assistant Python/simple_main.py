@@ -245,8 +245,32 @@ async def analyze_post(
         initial_solutions = all_solutions[:initial_limit]
         
         # Reassign order numbers starting from 1
+        from app.models.database import SolutionFeedback
         for idx, solution in enumerate(initial_solutions, 1):
             solution['order'] = idx
+            desc = solution.get('description', solution.get('content', ''))
+            feedback_rows = db.query(SolutionFeedback).filter(
+                SolutionFeedback.usefulness_count > 0
+            ).all()
+            user_verified = False
+            usefulness_count = 0
+            feedback_incident = None
+            feedback_solution = None
+            for fb in feedback_rows:
+                if desc and fb.solution_description and (
+                    desc.lower() in fb.solution_description.lower() or fb.solution_description.lower() in desc.lower()
+                ):
+                    user_verified = True
+                    usefulness_count = fb.usefulness_count
+                    feedback_incident = fb.incident_description
+                    feedback_solution = fb.solution_description
+                    logger.info(f"User verified match: Solution '{desc[:50]}' <-> Feedback '{fb.solution_description[:50]}' (count={fb.usefulness_count})")
+                    break
+            solution['user_verified'] = user_verified
+            if user_verified:
+                solution['usefulness_count'] = usefulness_count
+                solution['feedback_incident_description'] = feedback_incident
+                solution['feedback_solution_description'] = feedback_solution
         
         if initial_solutions:
             logger.info(f"Top solution: {initial_solutions[0]}")
@@ -784,8 +808,11 @@ async def mark_step_useful(
         elif rca_id:
             source_type = "RCA History"
         # Use incident_description if provided, otherwise "Unknown incident"
+        # Normalize: strip whitespace and convert to lowercase for consistency
         final_incident_description = incident_description.strip() if incident_description and incident_description.strip() else "Unknown incident"
-        # Check if this exact feedback already exists
+        
+        # Check if similar feedback already exists (match by solution, not incident)
+        # This allows the same solution to accumulate usefulness across different incidents
         existing_feedback = db.query(SolutionFeedback).filter(
             SolutionFeedback.solution_description == step_description,
             SolutionFeedback.solution_order == step_order,
@@ -1254,12 +1281,30 @@ async def analyze_root_cause(
             top_kb = unique_top_kb
         
         # Format for database storage and template display
+        # === ENRICH SOLUTIONS WITH FEEDBACK ===
+        from app.models.database import SolutionFeedback
+        feedback_rows = db.query(SolutionFeedback).filter(SolutionFeedback.usefulness_count > 0).all()
         recommended_solutions_data = []
         for idx, scored_match in enumerate(top_training, 1):
             match = scored_match["match"]
             solution = match.expected_root_cause or match.incident_description or "See training data"
-            
-            recommended_solutions_data.append({
+            # Feedback matching (bidirectional, case-insensitive)
+            user_verified = False
+            usefulness_count = int(getattr(match, 'usefulness_count', 0) or 0)
+            feedback_incident = None
+            feedback_solution = None
+            desc = solution
+            for fb in feedback_rows:
+                if desc and fb.solution_description and (
+                    desc.lower() in fb.solution_description.lower() or fb.solution_description.lower() in desc.lower()
+                ):
+                    user_verified = True
+                    usefulness_count = fb.usefulness_count
+                    feedback_incident = fb.incident_description
+                    feedback_solution = fb.solution_description
+                    logger.info(f"[RCA] User verified match: Solution '{desc[:50]}' <-> Feedback '{fb.solution_description[:50]}' (count={fb.usefulness_count})")
+                    break
+            solution_obj = {
                 "order": idx,
                 "title": f"Solution #{idx}: {match.category}" if match.category else f"Solution #{idx}",
                 "description": solution[:500] + "..." if len(solution) > 500 else solution,
@@ -1268,8 +1313,35 @@ async def analyze_root_cause(
                 "category": match.category or "General",
                 "relevance_score": min(99, max(60, int(scored_match["relevance_score"] / 10))),  # Normalize to 60-99%
                 "match_type": scored_match["match_type"],
-                "usefulness_count": int(getattr(match, 'usefulness_count', 0) or 0)
-            })
+                "usefulness_count": usefulness_count,
+                "user_verified": user_verified,
+                "feedback_incident_description": feedback_incident,
+                "feedback_solution_description": feedback_solution
+            }
+            recommended_solutions_data.append(solution_obj)
+
+        # === DEDUPLICATE: Remove solutions with identical descriptions ===
+        unique_solutions = []
+        seen_descriptions = set()
+        for solution in recommended_solutions_data:
+            desc_lower = solution['description'].lower().strip()
+            if desc_lower not in seen_descriptions:
+                unique_solutions.append(solution)
+                seen_descriptions.add(desc_lower)
+            else:
+                logger.info(f"[RCA] Removed duplicate solution: '{solution['description'][:50]}...'")
+        
+        logger.info(f"[RCA] Deduplication: {len(recommended_solutions_data)} → {len(unique_solutions)} solutions")
+        recommended_solutions_data = unique_solutions
+
+        # === SORT: User-verified solutions first (by usefulness_count desc), then unverified ===
+        recommended_solutions_data.sort(key=lambda s: (not s['user_verified'], -s['usefulness_count']))
+        
+        # Re-assign order numbers after sorting
+        for idx, solution in enumerate(recommended_solutions_data, 1):
+            solution['order'] = idx
+        
+        logger.info(f"[RCA] Solutions sorted: User-verified solutions at top, sorted by usefulness_count")
         
         sop_references_data = []
         for idx, scored_match in enumerate(top_kb, 1):

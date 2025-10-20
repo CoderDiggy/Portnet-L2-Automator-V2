@@ -353,10 +353,20 @@
                     {% for solution in solutions_to_show %}
                     <div class="solution-card mb-3 p-3 border rounded">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="fw-bold mb-0 text-primary">{{ solution.title or solution.get('title', 'Solution #' + loop.index|string) }}</h6>
-                            {% if solution.relevance_score %}
-                            <span class="badge bg-success">{{ solution.relevance_score }}% Match</span>
-                            {% endif %}
+                            <h6 class="fw-bold mb-0 text-primary">
+                                {{ solution.title or solution.get('title', 'Solution #' + loop.index|string) }}
+                                {% if solution.user_verified %}
+                                    <span class="badge bg-info ms-2"><i class="fas fa-user-check me-1"></i>User Verified</span>
+                                    {% if solution.usefulness_count %}
+                                        <span class="badge bg-success ms-1"><i class="fas fa-thumbs-up me-1"></i>{{ solution.usefulness_count }} marked useful</span>
+                                    {% endif %}
+                                {% endif %}
+                            </h6>
+                            <div class="d-flex gap-2 align-items-center">
+                                {% if solution.relevance_score %}
+                                <span class="badge bg-success">{{ solution.relevance_score }}% Match</span>
+                                {% endif %}
+                            </div>
                         </div>
                         <p class="mb-2">{{ solution.description or solution.content or solution.get('description', 'No description available') }}</p>
 
@@ -365,9 +375,19 @@
                             {% if solution.source %}| <i class="fas fa-database me-1"></i>{{ solution.source }}{% endif %}
                             {% if solution.category %}| <i class="fas fa-folder me-1"></i>{{ solution.category }}{% endif %}
                             {% if solution.match_type %}| <i class="fas fa-search me-1"></i>{{ solution.match_type }} match{% endif %}
+                            {% if solution.user_verified %}
+                                | <span class="badge bg-info"><i class="fas fa-user-check me-1"></i>User Verified</span>
+                                {% if solution.usefulness_count %}
+                                    <span class="badge bg-success ms-1"><i class="fas fa-thumbs-up me-1"></i>{{ solution.usefulness_count }} marked useful</span>
+                                {% endif %}
+                                {% if solution.feedback_incident_description %}
+                                    <br><span class="text-info">Feedback Incident: {{ solution.feedback_incident_description }}</span>
+                                {% endif %}
+                                {% if solution.feedback_solution_description %}
+                                    <br><span class="text-info">Feedback Solution: {{ solution.feedback_solution_description }}</span>
+                                {% endif %}
+                            {% endif %}
                         </div>
-                        
-                        {# Full text modal removed in revert #}
                     </div>
                     {% endfor %}
                 </div>
