@@ -965,8 +965,8 @@ async def analyze_root_cause(
                         score += 25
             
             # Factor 5: Historical usefulness
-            if hasattr(incident, 'usefulness_count_int'):
-                score += incident.usefulness_count_int * 5
+            # Historical usefulness
+            score += int(getattr(incident, 'usefulness_count', 0) or 0) * 5
             
             # Factor 6: Length similarity (prefer similar complexity)
             length_diff = abs(len(target_description) - len(incident.incident_description or ""))
@@ -1147,7 +1147,7 @@ async def analyze_root_cause(
         
         scored_training = []
         for match in unique_training_matches:
-            base_score = 100 + (match.usefulness_count_int * 10)  # Base score with usefulness
+            base_score = 100 + (int(getattr(match, 'usefulness_count', 0) or 0) * 10)  # Base score with usefulness
             text_to_score = f"{match.incident_description} {match.expected_root_cause} {match.notes}".strip()
             relevance_score = calculate_enhanced_relevance_score(text_to_score, incident_description, base_score)
             
@@ -1225,7 +1225,7 @@ async def analyze_root_cause(
                 "category": match.category or "General",
                 "relevance_score": min(99, max(60, int(scored_match["relevance_score"] / 10))),  # Normalize to 60-99%
                 "match_type": scored_match["match_type"],
-                "usefulness_count": match.usefulness_count_int
+                "usefulness_count": int(getattr(match, 'usefulness_count', 0) or 0)
             })
         
         sop_references_data = []

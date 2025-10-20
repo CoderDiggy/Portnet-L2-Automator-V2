@@ -332,7 +332,7 @@ Focus on maritime operations context including PORTNET®, container management, 
                         best_matches.append({
                             'problem': getattr(data, 'problem_statement', 'Unknown issue'),
                             'solution': solution_text,
-                            'usefulness': getattr(data, 'usefulness_count_int', 0)
+                            'usefulness': int(getattr(data, 'usefulness_count', 0) or 0)
                         })
             
             if best_matches:
@@ -542,7 +542,7 @@ Focus on maritime operations context including PORTNET®, container management, 
         description_lower = description.lower()
         for example in td_matches:
             # Training data are actual cases - give higher base score
-            relevance_score = 100 + example.usefulness_count_int
+            relevance_score = 100 + int(getattr(example, 'usefulness_count', 0) or 0)
             
             # Boost score for exact phrase matches
             incident_lower = (example.incident_description or "").lower()
@@ -580,7 +580,7 @@ Focus on maritime operations context including PORTNET®, container management, 
                 "source": "Training Data",
                 "knowledge_base_id": None,
                 "training_data_id": example.id,
-                "usefulness_count": example.usefulness_count_int,
+                "usefulness_count": int(getattr(example, 'usefulness_count', 0) or 0),
                 "category": example.category,
                 "relevance_score": relevance_score
             })
@@ -635,7 +635,7 @@ Focus on maritime operations context including PORTNET®, container management, 
                     "source": "Training Data",
                     "knowledge_base_id": None,
                     "training_data_id": example.id,
-                    "usefulness_count": example.usefulness_count_int,
+                    "usefulness_count": int(getattr(example, 'usefulness_count', 0) or 0),
                     "category": example.category
                 })
         

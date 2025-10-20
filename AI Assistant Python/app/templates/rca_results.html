@@ -359,12 +359,15 @@
                             {% endif %}
                         </div>
                         <p class="mb-2">{{ solution.description or solution.content or solution.get('description', 'No description available') }}</p>
+
                         <div class="small text-muted">
                             <i class="fas fa-tag me-1"></i>{{ solution.type or solution.get('type', 'Training Case') }} 
                             {% if solution.source %}| <i class="fas fa-database me-1"></i>{{ solution.source }}{% endif %}
                             {% if solution.category %}| <i class="fas fa-folder me-1"></i>{{ solution.category }}{% endif %}
                             {% if solution.match_type %}| <i class="fas fa-search me-1"></i>{{ solution.match_type }} match{% endif %}
                         </div>
+                        
+                        {# Full text modal removed in revert #}
                     </div>
                     {% endfor %}
                 </div>
@@ -464,7 +467,82 @@
     </div>
 </div>
 
+<!-- Solution Modal -->
+<div class="modal fade" id="solutionModal" tabindex="-1" aria-labelledby="solutionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="solutionModalLabel">
+                    <i class="fas fa-lightbulb me-2"></i>Complete Solution
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="solutionModalContent" style="white-space: pre-wrap; font-family: 'Segoe UI', sans-serif; line-height: 1.6;">
+                    <!-- Full solution text will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="copySolutionToClipboard(this)">
+                    <i class="fas fa-copy me-1"></i>Copy to Clipboard
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// Populate modal content when it's shown (Bootstrap 5 event)
+document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('solutionModal');
+    const contentEl = document.getElementById('solutionModalContent');
+
+    if (window.bootstrap && modalEl) {
+        modalEl.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget; // Button that triggered the modal
+            if (!button) return;
+            // Find the nearest solution card and its hidden full text div
+            const card = button.closest('.solution-card');
+            const fullTextElement = card ? card.querySelector('.solution-full-text') : null;
+            const fullText = fullTextElement ? fullTextElement.textContent.trim() : '';
+            contentEl.textContent = fullText;
+            contentEl.setAttribute('data-full-text', fullText);
+        });
+    } else {
+        // Fallback if Bootstrap JS isn't available: attach click and use alert
+        const buttons = document.querySelectorAll('button[data-bs-target="#solutionModal"]');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const card = btn.closest('.solution-card');
+                const fullTextElement = card ? card.querySelector('.solution-full-text') : null;
+                const fullText = fullTextElement ? fullTextElement.textContent.trim() : '';
+                if (fullText) {
+                    alert(fullText);
+                }
+            });
+        });
+    }
+});
+
+function copySolutionToClipboard(btn) {
+    const content = document.getElementById('solutionModalContent').getAttribute('data-full-text') || '';
+    navigator.clipboard.writeText(content).then(() => {
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-primary');
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-primary');
+        }, 1500);
+    }).catch(err => {
+        console.error('Copy failed:', err);
+        alert('Failed to copy to clipboard');
+    });
+}
+
 function exportRCA() {
     const data = {
         incident_id: "{{ rca.incident_id }}",

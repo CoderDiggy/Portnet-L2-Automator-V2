@@ -14,8 +14,8 @@ class TrainingDataService:
     async def find_relevant_examples_async(self, query: str, limit: int = 5) -> List[TrainingData]:
         """Find relevant training examples for a given query"""
         try:
-            # Get all training data (is_validated is string "1" not integer 1)
-            all_training = self.db.query(TrainingData).filter(TrainingData.is_validated == "1").all()
+            # Get all validated training data
+            all_training = self.db.query(TrainingData).filter(TrainingData.is_validated == 1).all()
             
             if not all_training:
                 logger.info("No validated training data found")
@@ -27,7 +27,7 @@ class TrainingDataService:
                 similarity = example.calculate_similarity(query)
                 if similarity > 0.1:  # Only include if some relevance
                     # Combine similarity score with usefulness count (weighted)
-                    usefulness_boost = example.usefulness_count_int * 0.05  # Each useful mark adds 5% to score
+                    usefulness_boost = int(getattr(example, 'usefulness_count', 0) or 0) * 0.05  # Each useful mark adds 5% to score
                     combined_score = similarity + usefulness_boost
                     scored_examples.append((example, combined_score))
             
@@ -137,9 +137,10 @@ class TrainingDataService:
     def search_training_data(self, search_term: str) -> List[TrainingData]:
         """Search training data by description or type, prioritizing better matches"""
         search_pattern = f"%{search_term}%"
+        # Use current schema fields (incident_description, expected_incident_type, category)
         results = self.db.query(TrainingData).filter(
-            (TrainingData.problem_statement.like(search_pattern)) |
-            (TrainingData.module.like(search_pattern)) |
+            (TrainingData.incident_description.like(search_pattern)) |
+            (TrainingData.expected_incident_type.like(search_pattern)) |
             (TrainingData.category.like(search_pattern))
         ).all()
         
@@ -159,11 +160,11 @@ class TrainingDataService:
             matching_words = len(search_words & desc_words)
             score += matching_words * 10
             # Add usefulness as tiebreaker
-            score += result.usefulness_count_int
+            score += int(getattr(result, 'usefulness_count', 0) or 0)
             
             scored_results.append((result, score))
         
         # Sort by score (descending), then by usefulness
-        scored_results.sort(key=lambda x: (x[1], x[0].usefulness_count_int), reverse=True)
+        scored_results.sort(key=lambda x: (x[1], int(getattr(x[0], 'usefulness_count', 0) or 0)), reverse=True)
         
         return [result for result, _ in scored_results]
