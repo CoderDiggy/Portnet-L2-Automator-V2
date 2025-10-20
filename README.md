@@ -41,6 +41,9 @@ Quick setup
    cp .env.example .env
 
 Run (quick test)
+- Change into the application subfolder that contains simple_main.py:
+  cd "AI Assistant Python"
+
 - Start the app:
   python simple_main.py
   # or explicitly:
