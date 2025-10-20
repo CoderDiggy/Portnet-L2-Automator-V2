@@ -42,7 +42,7 @@ Quick setup
 
 Run (quick test)
 - Change into the application subfolder that contains simple_main.py:
-  cd "AI Assistant Python"
+  cd "AI Assistant Python" (IMPORTANT)
 
 - Start the app:
   python simple_main.py
