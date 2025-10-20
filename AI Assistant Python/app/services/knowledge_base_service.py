@@ -17,37 +17,26 @@ class KnowledgeBaseService:
         try:
             # Get active knowledge entries
             all_knowledge = self.db.query(KnowledgeBase).filter(KnowledgeBase.status == "Active").all()
-            
             if not all_knowledge:
                 logger.info("No active knowledge entries found")
                 return []
-            
             # Calculate relevance scores
             scored_entries = []
             for entry in all_knowledge:
                 relevance = entry.calculate_relevance(query)
-                if relevance > 0.1:  # Only include if some relevance
-                    # Combine relevance score with usefulness count (weighted)
-                    # Higher usefulness count increases the score
-                    usefulness_boost = entry.usefulness_count * 0.05  # Each useful mark adds 5% to score
+                if relevance > 0.1:
+                    usefulness_boost = entry.usefulness_count * 0.05
                     combined_score = relevance + usefulness_boost
                     scored_entries.append((entry, combined_score))
-            
-            # Sort by combined score (descending) - usefulness count is already factored in
             scored_entries.sort(key=lambda x: x[1], reverse=True)
-            
-            # Update usage stats for top matches
+            # Update usage stats for top matches (but do not commit here)
             result = []
             for entry, score in scored_entries[:limit]:
                 entry.view_count += 1
                 entry.last_used = datetime.utcnow()
                 result.append(entry)
-            
-            self.db.commit()
-            
             logger.info(f"Found {len(result)} relevant knowledge entries for query: {query[:50]}...")
             return result
-            
         except Exception as ex:
             logger.error(f"Error finding relevant knowledge: {ex}")
             return []

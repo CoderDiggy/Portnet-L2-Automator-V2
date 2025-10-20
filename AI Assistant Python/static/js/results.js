@@ -187,7 +187,8 @@ function createSolutionElement(step) {
                                     data-step-order="${step.order}"
                                     data-step-description="${step.description}"
                                     ${step.knowledge_base_id ? `data-kb-id="${step.knowledge_base_id}"` : ''}
-                                    ${step.training_data_id ? `data-td-id="${step.training_data_id}"` : ''}>
+                                    ${step.training_data_id ? `data-td-id="${step.training_data_id}"` : ''}
+                                    data-toggled="false">
                                 <i class="fas fa-thumbs-up me-1"></i>Useful
                             </button>
                         </div>
@@ -215,45 +216,68 @@ function setupMarkUsefulButtons() {
         button.classList.add('processed'); // Prevent double-binding
         button.addEventListener('click', async function(e) {
             e.preventDefault();
+            const toggled = this.getAttribute('data-toggled') === 'true';
             const stepOrder = this.getAttribute('data-step-order');
             const stepDescription = this.getAttribute('data-step-description');
+            const stepType = this.getAttribute('data-step-type') || 'Resolution';
+            const incidentDescription = this.getAttribute('data-incident-description') || 'Unknown incident';
             const kbId = this.getAttribute('data-kb-id');
             const tdId = this.getAttribute('data-td-id');
-            
+            const formData = new FormData();
+            formData.append('step_order', stepOrder);
+            formData.append('step_description', stepDescription);
+            formData.append('step_type', stepType);
+            formData.append('incident_description', incidentDescription);
+            if (kbId) formData.append('knowledge_base_id', kbId);
+            if (tdId) formData.append('training_data_id', tdId);
             try {
-                const formData = new FormData();
-                formData.append('step_order', stepOrder);
-                formData.append('step_description', stepDescription);
-                if (kbId) formData.append('knowledge_base_id', kbId);
-                if (tdId) formData.append('training_data_id', tdId);
-                
-                const response = await fetch('/api/mark-step-useful', {
+                let url, successMsg, errorMsg;
+                if (!toggled) {
+                    url = '/api/mark-step-useful';
+                    successMsg = 'Step marked as useful!';
+                    errorMsg = 'Error marking step as useful';
+                } else {
+                    url = '/api/unmark-step-useful';
+                    successMsg = 'Step unmarked as useful!';
+                    errorMsg = 'Error unmarking step as useful';
+                }
+                const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
-                
                 const data = await response.json();
-                
                 if (data.success) {
                     // Update the usefulness count badge
                     const badge = this.closest('.timeline-header').querySelector('.badge.bg-info-subtle');
                     if (badge) {
-                        badge.innerHTML = `<i class="fas fa-thumbs-up me-1"></i>${data.usefulness_count}`;
+                        // Try to extract the new count from the response if available
+                        if (data.usefulness_count !== undefined) {
+                            badge.innerHTML = `<i class="fas fa-thumbs-up me-1"></i>${data.usefulness_count}`;
+                        } else {
+                            // Fallback: decrement/increment visually
+                            let count = parseInt(badge.textContent.trim()) || 0;
+                            badge.innerHTML = `<i class="fas fa-thumbs-up me-1"></i>${!toggled ? count + 1 : Math.max(count - 1, 0)}`;
+                        }
                     }
-                    
-                    // Disable the button and change appearance
-                    this.disabled = true;
-                    this.classList.remove('btn-outline-success');
-                    this.classList.add('btn-success');
-                    this.innerHTML = '<i class="fas fa-check me-1"></i>Marked!';
-                    
-                    showToast('Step marked as useful!', 'success');
+                    // Toggle button state
+                    if (!toggled) {
+                        this.classList.remove('btn-outline-success');
+                        this.classList.add('btn-success');
+                        this.innerHTML = '<i class="fas fa-check me-1"></i>Marked!';
+                        this.setAttribute('data-toggled', 'true');
+                    } else {
+                        this.classList.remove('btn-success');
+                        this.classList.add('btn-outline-success');
+                        this.innerHTML = '<i class="fas fa-thumbs-up me-1"></i>Useful';
+                        this.setAttribute('data-toggled', 'false');
+                    }
+                    showToast(successMsg, 'success');
                 } else {
-                    showToast('Error: ' + data.error, 'danger');
+                    showToast('Error: ' + (data.error || errorMsg), 'danger');
                 }
             } catch (error) {
-                console.error('Error marking step as useful:', error);
-                showToast('Error marking step as useful', 'danger');
+                console.error(errorMsg, error);
+                showToast(errorMsg, 'danger');
             }
         });
     });

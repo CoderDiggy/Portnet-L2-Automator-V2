@@ -447,3 +447,33 @@ class RootCauseAnalysis(Base):
             "status": self.status,
             "resolution_status": self.resolution_status
         }
+
+# New table to track solution feedback - which solutions worked for which problems
+class SolutionFeedback(Base):
+    __tablename__ = "solution_feedback"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # The problem that was being solved
+    incident_description = Column(Text, nullable=False)
+    
+    # The solution that was marked as useful
+    solution_description = Column(Text, nullable=False)
+    solution_order = Column(Integer, default=1)
+    solution_type = Column(String(50), default="Resolution")  # Analysis, Investigation, Resolution, Verification
+    
+    # Source of the solution (Knowledge Base, Training Data, or RCA History)
+    source_type = Column(String(50), default="")  # "Knowledge Base", "Training Data", "RCA History"
+    knowledge_base_id = Column(Integer, ForeignKey("knowledge_base.id"), nullable=True)
+    training_data_id = Column(Integer, ForeignKey("training_data.id"), nullable=True)
+    rca_id = Column(Integer, ForeignKey("root_cause_analyses.id"), nullable=True)
+    
+    # Tracking
+    usefulness_count = Column(Integer, default=1)
+    marked_at = Column(DateTime, default=datetime.utcnow)
+    user_identifier = Column(String(255), default="")  # Optional: track who marked it useful
+    
+    # Relationships
+    knowledge_base = relationship("KnowledgeBase")
+    training_data = relationship("TrainingData")
+    rca = relationship("RootCauseAnalysis")

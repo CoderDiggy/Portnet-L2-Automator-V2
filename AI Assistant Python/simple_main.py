@@ -3,7 +3,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from starlette.middleware.sessions import SessionMiddleware
 import logging
 from datetime import datetime
@@ -15,6 +15,7 @@ import os
 # Load environment variables from .env file
 load_dotenv()
 
+
 # Import the real services
 from app.services.openai_service import OpenAIService
 from app.services.knowledge_base_service import KnowledgeBaseService
@@ -23,16 +24,21 @@ from app.services.incident_analyzer import IncidentAnalyzer
 from app.services.log_analyzer_service import LogAnalyzerService
 from app.services.operational_data_service import OperationalDataService
 from app.services.escalation_service import EscalationService
-from app.models.database import Base, ResolutionStep, SystemLog, RootCauseAnalysis
+from app.models.database import Base, ResolutionStep, SystemLog, RootCauseAnalysis, KnowledgeBase, TrainingData
 from app.models.schemas import EscalationSummary, EscalationTemplate
 from app.database import get_db, engine
+
+# Import the unmark-step-useful API
+from app.api_unmark_step_useful import router as unmark_step_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 # Create FastAPI app
 app = FastAPI(title="AI Duty Officer Assistant", version="1.0.0")
+app.include_router(unmark_step_router)
 
 # Add session middleware for storing temporary data
 app.add_middleware(SessionMiddleware, secret_key="your-secret-key-here-change-in-production")
@@ -752,38 +758,75 @@ async def mark_solution_useful(solution_type: str, solution_id: int, db: Session
 @app.post("/api/mark-step-useful")
 async def mark_step_useful(
     request: Request,
-    incident_id: str = Form(...),
     step_order: int = Form(...),
     step_description: str = Form(...),
+    knowledge_base_id: Optional[int] = Form(None),
+    training_data_id: Optional[int] = Form(None),
+    rca_id: Optional[int] = Form(None),
+    incident_description: Optional[str] = Form(None),
+    step_type: Optional[str] = Form("Resolution"),
     db: Session = Depends(get_db)
 ):
-    """Mark a specific resolution step as useful"""
+    """Mark a specific resolution step as useful and store feedback"""
     try:
-        # Check if step already exists in DB
-        db_step = db.query(ResolutionStep).filter_by(
-            incident_id=incident_id,
-            order=step_order,
-            description=step_description
-        ).first()
-        
-        if db_step:
-            # Increment existing count
-            db_step.usefulness_count += 1
+        from app.models.database import SolutionFeedback
+        # Log received incident_description for debugging
+        if not incident_description or incident_description.strip() == "":
+            logger.warning(f"Received empty incident_description. Step: {step_description[:50]}...")
         else:
-            # Create new step entry
-            db_step = ResolutionStep(
-                incident_id=incident_id,
-                order=step_order,
-                description=step_description,
+            logger.info(f"Received incident_description: {incident_description[:100]}...")
+        # Determine source type
+        source_type = ""
+        if knowledge_base_id:
+            source_type = "Knowledge Base"
+        elif training_data_id:
+            source_type = "Training Data"
+        elif rca_id:
+            source_type = "RCA History"
+        # Use incident_description if provided, otherwise "Unknown incident"
+        final_incident_description = incident_description.strip() if incident_description and incident_description.strip() else "Unknown incident"
+        # Check if this exact feedback already exists
+        existing_feedback = db.query(SolutionFeedback).filter(
+            SolutionFeedback.solution_description == step_description,
+            SolutionFeedback.solution_order == step_order,
+            SolutionFeedback.knowledge_base_id == knowledge_base_id,
+            SolutionFeedback.training_data_id == training_data_id,
+            SolutionFeedback.rca_id == rca_id
+        ).first()
+        if existing_feedback:
+            # Increment existing count and update incident description if we have a better one
+            existing_feedback.usefulness_count += 1
+            existing_feedback.marked_at = datetime.utcnow()
+            if final_incident_description != "Unknown incident":
+                existing_feedback.incident_description = final_incident_description
+            usefulness_count = existing_feedback.usefulness_count
+        else:
+            # Create new feedback entry
+            new_feedback = SolutionFeedback(
+                incident_description=final_incident_description,
+                solution_description=step_description,
+                solution_order=step_order,
+                solution_type=step_type,
+                source_type=source_type,
+                knowledge_base_id=knowledge_base_id,
+                training_data_id=training_data_id,
+                rca_id=rca_id,
                 usefulness_count=1
             )
-            db.add(db_step)
-        
+            db.add(new_feedback)
+            usefulness_count = 1
+        # Also update the source table's usefulness count
+        if knowledge_base_id:
+            kb = db.query(KnowledgeBase).filter_by(id=knowledge_base_id).first()
+            if kb:
+                kb.usefulness_count += 1
+        elif training_data_id:
+            td = db.query(TrainingData).filter_by(id=training_data_id).first()
+            if td:
+                td.usefulness_count = (td.usefulness_count or 0) + 1
         db.commit()
-        logger.info(f"Step {step_order} for incident {incident_id} marked as useful. Count: {db_step.usefulness_count}")
-        
-        return {"success": True, "usefulness_count": db_step.usefulness_count, "message": "Step marked as useful"}
-        
+        logger.info(f"Solution step {step_order} marked as useful. Source: {source_type}, Count: {usefulness_count}")
+        return {"success": True, "usefulness_count": usefulness_count, "message": "Step marked as useful"}
     except Exception as ex:
         logger.error(f"Error marking step as useful: {ex}")
         db.rollback()

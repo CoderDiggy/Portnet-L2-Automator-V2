@@ -428,9 +428,10 @@
                                                     <i class="fas fa-thumbs-up me-1"></i>{{ step.usefulness_count }}
                                                 </span>
                                                 <button class="btn btn-sm btn-outline-success mark-useful-btn" 
-                                                        data-incident-id="{{ result.incident.id }}"
+                                                        data-incident-description="{{ result.incident.description | e }}"
                                                         data-step-order="{{ step.order }}"
-                                                        data-step-description="{{ step.description }}"
+                                                        data-step-description="{{ step.description | e }}"
+                                                        data-step-type="{{ step.type }}"
                                                         {% if step.knowledge_base_id %}data-kb-id="{{ step.knowledge_base_id }}"{% endif %}
                                                         {% if step.training_data_id %}data-td-id="{{ step.training_data_id }}"{% endif %}>
                                                     <i class="fas fa-thumbs-up me-1"></i>Useful
